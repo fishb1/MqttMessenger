@@ -9,7 +9,7 @@ import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
 
 /**
- * Приложение. Нужно чтобы хранить синглтоны.
+ * Приложение. Нужно чтобы хранить синглтоны. test
  *
  * Created by kolyan on 12.03.18.
  */
