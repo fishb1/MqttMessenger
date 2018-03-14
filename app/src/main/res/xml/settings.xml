@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <EditTextPreference
+        android:key="PREF_ADDRESS"
+        android:title="MQTT Broker"
+        android:summary="Address of MQ TT server" />
+
+    <EditTextPreference
+        android:key="PREF_PUBLISH_TOPIC"
+        android:title="Publish topic"
+        android:summary="Topic for sending messages" />
+
+    <EditTextPreference
+        android:key="PREF_SUBSCRIBE_TOPIC"
+        android:title="Subscribe topic"
+        android:summary="Topic for receiving messages" />
+
+    <EditTextPreference
+        android:key="PREF_TIMEOUT"
+        android:title="Timeout"
+        android:summary="Timeout between automatic messages in ms"
+        android:inputType="number" />
+
+</PreferenceScreen>
