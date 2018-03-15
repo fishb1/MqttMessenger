@@ -14,18 +14,14 @@ import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
-import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.TextView;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
 import java.lang.reflect.Type;
-import java.security.Permission;
-import java.security.Permissions;
 import java.util.Map;
 
 import fb.ru.mqtttest.App;
@@ -34,6 +30,10 @@ import fb.ru.mqtttest.MessagingService;
 import fb.ru.mqtttest.R;
 import fb.ru.mqtttest.common.Settings;
 import fb.ru.mqtttest.common.UserSession;
+import fb.ru.mqtttest.common.logger.AndroidLogWrapper;
+import fb.ru.mqtttest.common.logger.FilterTagLogger;
+import fb.ru.mqtttest.common.logger.Log;
+import fb.ru.mqtttest.common.logger.LogFragment;
 
 /**
  * Основное активити.
@@ -101,6 +101,7 @@ public class HomeActivity extends AppCompatActivity  {
             }
         });
         mContentView = findViewById(R.id.content);
+        initLogger(); // Initialize the logger (don't forget return original logger back)
     }
 
     @Override
@@ -114,12 +115,8 @@ public class HomeActivity extends AppCompatActivity  {
             unbindService(mGapiServiceConnection);
             isGapiServiceBound = false;
         }
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        updateInfo();
+        // Установить обратно стандартный логгер
+        Log.setLogger(new AndroidLogWrapper());
     }
 
     @Override
@@ -162,6 +159,7 @@ public class HomeActivity extends AppCompatActivity  {
             msg.obj = gson.fromJson(json, type);
             mMessenger.send(msg);
         } catch (Throwable e) {
+            Log.e(TAG, "Msg parsing error", e);
             Snackbar.make(mContentView, "Message format error: " + e.getMessage(),
                     Snackbar.LENGTH_LONG).show();
         }
@@ -170,8 +168,10 @@ public class HomeActivity extends AppCompatActivity  {
     private void toggleService() {
         if (mGapiService != null && isGapiServiceBound) {
             if (mGapiService.isStarted()) {
+                Log.d(TAG, "Остановка службы обновления геолокации");
                 mGapiService.finishWatching();
             } else {
+                Log.d(TAG, "Запуск службы обновления геолокации");
                 if (Build.VERSION.SDK_INT >= 26) { // TODO: пока никак не обрабатывается, доделать!
                     startForegroundService(new Intent(this, GapiService.class));
                 } else {
@@ -209,17 +209,18 @@ public class HomeActivity extends AppCompatActivity  {
         return true;
     }
 
-    public void updateInfo() {
-        String settings = "Login: " + mSession.getLogin() + "\n===\nSettings:\n";
-        settings += "Server: " + mSettings.getAddress() + "\n";
-        settings += "Topic: " + mSettings.getPublishTopic() + "\n";
-        settings += "Timeout: " + mSettings.getTimeout() + "\n";
-        ((TextView) findViewById(R.id.text_name)).setText(settings);
-    }
-
     private void logout() {
         mSession.clear();
         startActivity(new Intent(this, LauncherActivity.class));
         finish();
+    }
+
+    private void initLogger() {
+        AndroidLogWrapper wrapper = new AndroidLogWrapper();
+        Log.setLogger(wrapper);
+        FilterTagLogger filter = new FilterTagLogger(TAG, Settings.TAG, GapiService.TAG, MessagingService.TAG);
+        wrapper.setNext(filter);
+        LogFragment logFragment = (LogFragment) getSupportFragmentManager().findFragmentById(R.id.content);
+        filter.setNext(logFragment.getLogView());
     }
 }

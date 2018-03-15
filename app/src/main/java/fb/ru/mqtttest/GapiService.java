@@ -16,7 +16,6 @@ import android.os.Messenger;
 import android.os.RemoteException;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.util.Log;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -27,9 +26,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import fb.ru.mqtttest.common.logger.Log;
+
 public class GapiService extends IntentService {
 
-    private static final String TAG = "GapiService";
+    public static final String TAG = "GapiService";
 
     public final static int NOTIFICATION_ID = 777;
 
@@ -61,7 +62,7 @@ public class GapiService extends IntentService {
 
     @Override
     public void onCreate() {
-        Log.d(TAG, "onCreate");
+        Log.d(TAG, "Service created");
         super.onCreate();
         bindService(new Intent(this, MessagingService.class), mConnection,
                 BIND_AUTO_CREATE);
@@ -69,7 +70,7 @@ public class GapiService extends IntentService {
 
     @Override
     public void onDestroy() {
-        Log.d(TAG, "onDestroy");
+        Log.d(TAG, "Service destroyed");
         super.onDestroy();
         finishWatching();
         if (mMessengerServiceBound) {
@@ -85,14 +86,14 @@ public class GapiService extends IntentService {
     }
 
     public void startWatching() {
-        Log.d(TAG, "startWatching");
+        Log.d(TAG, "Start tracking location");
         startForeground(NOTIFICATION_ID, getNotification());
         mGoogleApiListener.connect();
         mStarted = true;
     }
 
     public void finishWatching() {
-        Log.d(TAG, "finishWatching");
+        Log.d(TAG, "Stop tracking location");
         mGoogleApiListener.disconnect();
         mStarted = false;
         stopForeground(true);
@@ -141,7 +142,7 @@ public class GapiService extends IntentService {
 
     @Override
     public IBinder onBind(Intent intent) {
-        Log.d(TAG, "onBind");
+        Log.d(TAG, "Client connected");
         return new MyBinder();
     }
 

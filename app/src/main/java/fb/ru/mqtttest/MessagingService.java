@@ -6,7 +6,6 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
-import android.util.Log;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -24,6 +23,7 @@ import org.msgpack.jackson.dataformat.MessagePackFactory;
 
 import fb.ru.mqtttest.common.Settings;
 import fb.ru.mqtttest.common.UserSession;
+import fb.ru.mqtttest.common.logger.Log;
 
 /**
  * Служба отвечающая за взаимодействие с MQ TT сервером. Бедет поддерживать трэд с автоматическиой
@@ -31,7 +31,7 @@ import fb.ru.mqtttest.common.UserSession;
  */
 public class MessagingService extends Service {
 
-    private static final String TAG = "MessagingService";
+    public static final String TAG = "MessagingService";
 
     private MqttAndroidClient mClient;
     private Settings mSettings;
@@ -49,7 +49,7 @@ public class MessagingService extends Service {
 
     @Override
     public void onCreate() {
-        Log.d(TAG, "onCreate");
+        Log.d(TAG, "Service created");
         super.onCreate();
         mMessenger = new Messenger(new MessageHandler(this));
         mUserSession = ((App) getApplication()).getUserSession();
@@ -60,7 +60,7 @@ public class MessagingService extends Service {
 
     @Override
     public void onDestroy() {
-        Log.d(TAG, "onDestroy");
+        Log.d(TAG, "Service destroyed");
         super.onDestroy();
         mUserSession.removeListener(mSessionListener);
         try {
@@ -72,7 +72,7 @@ public class MessagingService extends Service {
 
     @Override
     public IBinder onBind(Intent intent) {
-        Log.d(TAG, "onBind");
+        Log.d(TAG, "Client connected");
         return mMessenger.getBinder();
     }
 
@@ -114,7 +114,7 @@ public class MessagingService extends Service {
         mqttConnectOptions.setPassword(mUserSession.getPassword().toCharArray());
 
         try {
-            Log.d(TAG, "Connecting to ...");
+            Log.d(TAG, "Connecting to " + mSettings.getAddress());
             mClient.connect(mqttConnectOptions, null, new IMqttActionListener() {
                 @Override
                 public void onSuccess(IMqttToken asyncActionToken) {
@@ -129,7 +129,7 @@ public class MessagingService extends Service {
 
                 @Override
                 public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
-                    Log.d(TAG, "Failed to connect to: ...");
+                    Log.d(TAG, "Failed to connect to " + mSettings.getAddress());
                 }
             });
         } catch (MqttException ex){
@@ -159,7 +159,7 @@ public class MessagingService extends Service {
     }
 
     private void subscribeToTopic() {
-        Log.d(TAG, "subscribeToTopic: " + mSettings.getSubscribeTopic());
+        Log.d(TAG, "Subscribe to topic " + mSettings.getSubscribeTopic());
         try {
             mClient.subscribe(mSettings.getSubscribeTopic(),0, null,
                     new IMqttActionListener() {

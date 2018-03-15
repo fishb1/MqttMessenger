@@ -4,12 +4,16 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
 
+import fb.ru.mqtttest.common.logger.Log;
+
 /**
  * Хранилище настроек.
  *
  * Created by kolyan on 13.03.18.
  */
-public class Settings {
+public class Settings implements SharedPreferences.OnSharedPreferenceChangeListener {
+
+    public static final String TAG = "Settings";
 
     private static final String PREF_ADDRESS = "PREF_ADDRESS";
     private static final String PREF_PUBLISH_TOPIC = "PREF_PUBLISH_TOPIC";
@@ -20,6 +24,7 @@ public class Settings {
 
     public Settings(Context context) {
         mPrefs = PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
+        mPrefs.registerOnSharedPreferenceChangeListener(this);
     }
     /**
      * Инициализация настроек. Сразу после логина, установить значения по-умолчанию, чтобы можно
@@ -31,31 +36,21 @@ public class Settings {
      * @param session параметры сессии пользователя
      */
     public void init(UserSession session) {
-        clear();
-        setAddress(getAddress());
-        setTimeout(getTimeout());
-        setPublishTopic(String.format(getPublishTopic(), session.getLogin()));
-        setSubscribeTopic(String.format(getSubscribeTopic(), session.getLogin()));
+        mPrefs.edit().clear().apply();
+        mPrefs.edit().putString(PREF_ADDRESS, getAddress()).apply();
+        mPrefs.edit().putString(PREF_TIMEOUT, String.valueOf(getTimeout())).apply();
+        mPrefs.edit().putString(PREF_PUBLISH_TOPIC, String.format(
+                getPublishTopic(), session.getLogin())).apply();
+        mPrefs.edit().putString(PREF_SUBSCRIBE_TOPIC, String.format(
+                getSubscribeTopic(), session.getLogin())).apply();
     }
 
     public String getAddress() {
         return mPrefs.getString(PREF_ADDRESS, "tcp://176.112.218.148:1883");
     }
 
-    public void setAddress(String value) {
-        mPrefs.edit().putString(PREF_ADDRESS, value).apply();
-    }
-
     public String getPublishTopic() {
         return mPrefs.getString(PREF_PUBLISH_TOPIC, "%s/echo/req");
-    }
-
-    public void setPublishTopic(String value) {
-        mPrefs.edit().putString(PREF_PUBLISH_TOPIC, value).apply();
-    }
-
-    public void setSubscribeTopic(String value) {
-        mPrefs.edit().putString(PREF_SUBSCRIBE_TOPIC, value).apply();
     }
 
     public String getSubscribeTopic() {
@@ -66,11 +61,17 @@ public class Settings {
         return Long.valueOf(mPrefs.getString(PREF_TIMEOUT, "1000"));
     }
 
-    public void setTimeout(long value) {
-        mPrefs.edit().putString(PREF_TIMEOUT, String.valueOf(value)).apply();
+    @Override
+    public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+        printSettings();
     }
 
-    public void clear() {
-        mPrefs.edit().clear().apply();
+    public void printSettings() {
+        Log.i(TAG, "==============================");
+        Log.i(TAG, "Server: " + getAddress());
+        Log.i(TAG, "Publish topic: " + getPublishTopic());
+        Log.i(TAG, "Subscribe topic: " + getSubscribeTopic());
+        Log.i(TAG, "Timeout: " + getTimeout());
+        Log.i(TAG, "==============================");
     }
 }
