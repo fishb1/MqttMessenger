@@ -4,6 +4,9 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import fb.ru.mqtttest.common.logger.Log;
 
 /**
@@ -15,12 +18,13 @@ public class Settings implements SharedPreferences.OnSharedPreferenceChangeListe
 
     public static final String TAG = "Settings";
 
-    private static final String PREF_ADDRESS = "PREF_ADDRESS";
-    private static final String PREF_PUBLISH_TOPIC = "PREF_PUBLISH_TOPIC";
-    private static final String PREF_SUBSCRIBE_TOPIC = "PREF_SUBSCRIBE_TOPIC";
-    private static final String PREF_TIMEOUT = "PREF_TIMEOUT";
+    public static final String PREF_ADDRESS = "PREF_ADDRESS";
+    public static final String PREF_PUBLISH_TOPIC = "PREF_PUBLISH_TOPIC";
+    public static final String PREF_SUBSCRIBE_TOPIC = "PREF_SUBSCRIBE_TOPIC";
+    public static final String PREF_TIMEOUT = "PREF_TIMEOUT";
 
     private final SharedPreferences mPrefs;
+    private final List<OnSettingsChangedListener> mListeners = new ArrayList<>();
 
     public Settings(Context context) {
         mPrefs = PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
@@ -36,6 +40,9 @@ public class Settings implements SharedPreferences.OnSharedPreferenceChangeListe
      * @param session параметры сессии пользователя
      */
     public void init(UserSession session) {
+        // Да, путь все кто хочет мониторит сессию и по новой подключаются
+        mListeners.clear();
+        // Очистка настроек и инициализация всех полей заново
         mPrefs.edit().clear().apply();
         mPrefs.edit().putString(PREF_ADDRESS, getAddress()).apply();
         mPrefs.edit().putString(PREF_TIMEOUT, String.valueOf(getTimeout())).apply();
@@ -64,14 +71,50 @@ public class Settings implements SharedPreferences.OnSharedPreferenceChangeListe
     @Override
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
         printSettings();
+        notifyListeners(key);
     }
 
-    public void printSettings() {
+    private void printSettings() {
         Log.i(TAG, "==============================");
         Log.i(TAG, "Server: " + getAddress());
         Log.i(TAG, "Publish topic: " + getPublishTopic());
         Log.i(TAG, "Subscribe topic: " + getSubscribeTopic());
         Log.i(TAG, "Timeout: " + getTimeout());
         Log.i(TAG, "==============================");
+    }
+
+    /**
+     * Добавить слушателя изменения настроек. Хранится жесткая ссылка, так что удаление
+     * обязательно!
+     *
+     * @param listener слушатель
+     */
+    public void addOnSettingsChangedListener(OnSettingsChangedListener listener) {
+        mListeners.add(listener);
+    }
+    /**
+     * Удалить слушатель измеения настроек.
+     *
+     * @param listener слушатель
+     */
+    public void removeOnSettingsChangedListener(OnSettingsChangedListener listener) {
+        mListeners.remove(listener);
+    }
+    /**
+     * Уведомить слушателей об изменении настроек.
+     *
+     * @param key поле настроек
+     */
+    private void notifyListeners(String key) {
+        for (OnSettingsChangedListener listener : mListeners) {
+            listener.onSettingsChanged(key);
+        }
+    }
+    /**
+     * Интерфейс слушателя изменения настроек.
+     */
+    public interface OnSettingsChangedListener {
+
+        void onSettingsChanged(String settingName);
     }
 }

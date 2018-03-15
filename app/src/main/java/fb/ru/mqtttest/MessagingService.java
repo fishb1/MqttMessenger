@@ -6,6 +6,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
+import android.text.TextUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -34,15 +35,32 @@ public class MessagingService extends Service {
     public static final String TAG = "MessagingService";
 
     private MqttAndroidClient mClient;
+    private boolean mReconnecting; // Флаг переподключения при изменении адреса в настройках
+    private String mCurrentTopic; // Топик на который подписаны в данный момент (для переподписания)
     private Settings mSettings;
+    private Settings.OnSettingsChangedListener mSettingsListener = new Settings.OnSettingsChangedListener() {
+
+        @Override
+        public void onSettingsChanged(String settingName) {
+            switch (settingName) {
+                case Settings.PREF_ADDRESS: {
+                    reconnect();
+                } break;
+                case Settings.PREF_SUBSCRIBE_TOPIC: {
+                    resubscribe();
+                } break;
+            }
+        }
+    };
+
     private UserSession mUserSession;
     private UserSession.Listener mSessionListener = new UserSession.Listener() {
         @Override
         public void onSessionStop(UserSession session) {
-            // TODO stop sending messages
+            stopSelf();
         }
     };
-    private Messenger mMessenger;
+    private Messenger mMessenger; // Месэйджер, который прнимает сообщение от других компонент приложения и отсылает в MQTT. Юзается компонентами через его биндер
 
     public MessagingService() {
     }
@@ -53,8 +71,9 @@ public class MessagingService extends Service {
         super.onCreate();
         mMessenger = new Messenger(new MessageHandler(this));
         mUserSession = ((App) getApplication()).getUserSession();
-        mSettings = ((App) getApplication()).getSettings();
         mUserSession.addListener(mSessionListener);
+        mSettings = ((App) getApplication()).getSettings();
+        mSettings.addOnSettingsChangedListener(mSettingsListener);
         connect();
     }
 
@@ -63,6 +82,7 @@ public class MessagingService extends Service {
         Log.d(TAG, "Service destroyed");
         super.onDestroy();
         mUserSession.removeListener(mSessionListener);
+        mSettings.removeOnSettingsChangedListener(mSettingsListener);
         try {
             mClient.disconnect();
         } catch (MqttException e) {
@@ -77,15 +97,16 @@ public class MessagingService extends Service {
     }
 
     private void connect() {
+        // Инициализация MQTT клиента
         mClient = new MqttAndroidClient(getApplicationContext(), mSettings.getAddress(),
                 mUserSession.getSid());
         mClient.setCallback(new MqttCallbackExtended() {
+
             @Override
             public void connectComplete(boolean reconnect, String serverURI) {
                 if (reconnect) {
                     Log.d(TAG, "Reconnected to : " + serverURI);
-                    // Because Clean Session is true, we need to re-subscribe
-                    subscribeToTopic();
+                    subscribeToTopic(); // Because Clean Session is true, we need to re-subscribe
                 } else {
                     Log.d(TAG, "Connected to: " + serverURI);
                 }
@@ -94,6 +115,10 @@ public class MessagingService extends Service {
             @Override
             public void connectionLost(Throwable cause) {
                 Log.d(TAG, "The Connection was lost.");
+                if (mReconnecting) { // Переподключение из-за изменения адреса в настройках
+                    mReconnecting = false;
+                    connect();
+                }
             }
 
             @Override
@@ -106,16 +131,14 @@ public class MessagingService extends Service {
 
             }
         });
-
-        MqttConnectOptions mqttConnectOptions = new MqttConnectOptions();
-        mqttConnectOptions.setAutomaticReconnect(true);
-        mqttConnectOptions.setCleanSession(false);
-        mqttConnectOptions.setUserName(mUserSession.getLogin());
-        mqttConnectOptions.setPassword(mUserSession.getPassword().toCharArray());
-
+        MqttConnectOptions options = new MqttConnectOptions();
+        options.setAutomaticReconnect(false);
+        options.setCleanSession(false);
+        options.setUserName(mUserSession.getLogin());
+        options.setPassword(mUserSession.getPassword().toCharArray());
         try {
             Log.d(TAG, "Connecting to " + mSettings.getAddress());
-            mClient.connect(mqttConnectOptions, null, new IMqttActionListener() {
+            mClient.connect(options, null, new IMqttActionListener() {
                 @Override
                 public void onSuccess(IMqttToken asyncActionToken) {
                     DisconnectedBufferOptions disconnectedBufferOptions = new DisconnectedBufferOptions();
@@ -133,9 +156,36 @@ public class MessagingService extends Service {
                 }
             });
         } catch (MqttException ex){
-            ex.printStackTrace();
+            Log.e(TAG, "Connecting error", ex);
         }
     }
+
+    private void reconnect() {
+        Log.d(TAG, "Reconnecting...");
+        mReconnecting = true;
+        try {
+            if (mClient.isConnected()) {
+                mClient.disconnect();
+            } else {
+                connect();
+            }
+        } catch (MqttException e) {
+            Log.e(TAG, "Reconnecting error", e);
+        }
+    }
+
+    private void resubscribe() {
+        Log.d(TAG, "Resubscribing...");
+        if (!TextUtils.isEmpty(mCurrentTopic)) {
+            try {
+                mClient.unsubscribe(mCurrentTopic);
+            } catch (MqttException e) {
+                Log.e(TAG, "Unsubscribe error", e);
+            }
+            subscribeToTopic();
+       }
+    }
+
     /**
      * Опубликовать сообщение.
      *
@@ -154,18 +204,20 @@ public class MessagingService extends Service {
                 Log.d(TAG, mClient.getBufferedMessageCount() + " messages in buffer.");
             }
         } catch (Throwable e) {
-            Log.e(TAG, "Error", e);
+            Log.e(TAG, "Publish error", e);
         }
     }
 
     private void subscribeToTopic() {
         Log.d(TAG, "Subscribe to topic " + mSettings.getSubscribeTopic());
+        final String topic = mSettings.getSubscribeTopic();
         try {
-            mClient.subscribe(mSettings.getSubscribeTopic(),0, null,
+            mClient.subscribe(topic,0, null,
                     new IMqttActionListener() {
                 @Override
                 public void onSuccess(IMqttToken asyncActionToken) {
-                    Log.d(TAG, "Subscribed!");
+                    Log.d(TAG, "Subscribed to " + topic);
+                    mCurrentTopic = topic;
                 }
 
                 @Override
@@ -173,7 +225,7 @@ public class MessagingService extends Service {
                     Log.d(TAG, "Failed to subscribe");
                 }
             });
-            mClient.subscribe(mSettings.getSubscribeTopic(),0, new IMqttMessageListener() {
+            mClient.subscribe(topic,0, new IMqttMessageListener() {
 
                 @Override
                 public void messageArrived(String topic, MqttMessage message) throws Exception {
@@ -187,6 +239,7 @@ public class MessagingService extends Service {
     /**
      * Формат сообщения для отправки на сервер.
      */
+    @SuppressWarnings("WeakerAccess")
     private static class MqMessage {
 
         static int sMsgCounter;
@@ -208,7 +261,7 @@ public class MessagingService extends Service {
 
         private final MessagingService mService;
 
-        public MessageHandler(MessagingService service) {
+        MessageHandler(MessagingService service) {
             mService = service;
         }
 

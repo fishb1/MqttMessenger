@@ -1,9 +1,7 @@
 package fb.ru.mqtttest.common;
 
 import android.content.SharedPreferences;
-import android.util.Log;
 
-import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -19,7 +17,7 @@ public class UserSession {
     private static String PREF_SID = "PREF_SID";
 
     private final SharedPreferences mPrefs;
-    private final List<WeakReference<Listener>> mListeners = new ArrayList<>(); // TODO: переделать. прохая была идея со слабой ссылкой, т.к. надо держать ссылку на стороне слушателя + еще не понятно в каком треде оповещать слушателей.
+    private final List<Listener> mListeners = new ArrayList<>();
 
     public UserSession(SharedPreferences prefs) {
         mPrefs = prefs;
@@ -55,39 +53,23 @@ public class UserSession {
     }
 
     private void notifyOnStart() {
-        List<WeakReference> garbage = new ArrayList<>();
-        for (WeakReference<Listener> ref : mListeners) {
-            Listener listener = ref.get();
-            if (listener == null) {
-                Log.e("notifyOnStart", "ref: " + ref);
-                garbage.add(ref);
-            } else {
-                Log.e("notifyOnStart", "listener: " + listener);
-                listener.onSessionStart(this);
-            }
+        for (Listener listener : mListeners) {
+            listener.onSessionStart(this);
         }
-        mListeners.removeAll(garbage);
     }
 
     private void notifyOnStop() {
-        List<WeakReference> garbage = new ArrayList<>();
-        for (WeakReference<Listener> ref : mListeners) {
-            Listener listener = ref.get();
-            if (listener == null) {
-                garbage.add(ref);
-            } else {
-                listener.onSessionStop(this);
-            }
+        for (Listener listener : mListeners) {
+            listener.onSessionStop(this);
         }
-        mListeners.removeAll(garbage);
     }
 
     public void addListener(Listener listener) {
-        mListeners.add(new WeakReference<>(listener));
+        mListeners.add(listener);
     }
 
     public void removeListener(Listener listener) {
-        mListeners.remove(new WeakReference<>(listener));
+        mListeners.remove(listener);
     }
 
     public static class Listener {

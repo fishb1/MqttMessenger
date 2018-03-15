@@ -38,6 +38,14 @@ public class GapiService extends IntentService {
 //    private static final long MIN_UPDATE_INTERVAL = TimeUnit.SECONDS.toMillis(10);
 
     Settings mSettings;
+    Settings.OnSettingsChangedListener mSettingListener = new Settings.OnSettingsChangedListener() {
+        @Override
+        public void onSettingsChanged(String settingName) {
+            if (Settings.PREF_TIMEOUT.equals(settingName)) { // Если изменили таймаут, то переподключиться
+                mGoogleApiListener.reconnect();
+            }
+        }
+    };
     GoogleApiListener mGoogleApiListener = new GoogleApiListener(); // Слушатель обновлений местоположения от Google API
     boolean mStarted;
     Messenger mMessenger;
@@ -92,10 +100,12 @@ public class GapiService extends IntentService {
         startForeground(NOTIFICATION_ID, getNotification());
         mGoogleApiListener.connect();
         mStarted = true;
+        mSettings.addOnSettingsChangedListener(mSettingListener);
     }
 
     public void finishWatching() {
         Log.d(TAG, "Stop tracking location");
+        mSettings.removeOnSettingsChangedListener(mSettingListener);
         mGoogleApiListener.disconnect();
         mStarted = false;
         stopForeground(true);
