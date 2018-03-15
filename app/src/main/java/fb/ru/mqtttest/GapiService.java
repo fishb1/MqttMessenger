@@ -26,17 +26,18 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import fb.ru.mqtttest.common.Settings;
 import fb.ru.mqtttest.common.logger.Log;
 
 public class GapiService extends IntentService {
 
     public static final String TAG = "GapiService";
 
-    public final static int NOTIFICATION_ID = 777;
-
+    private final static int NOTIFICATION_ID = 777;
     private static final long MAX_UPDATE_INTERVAL = TimeUnit.SECONDS.toMillis(30);
-    private static final long MIN_UPDATE_INTERVAL = TimeUnit.SECONDS.toMillis(10);
+//    private static final long MIN_UPDATE_INTERVAL = TimeUnit.SECONDS.toMillis(10);
 
+    Settings mSettings;
     GoogleApiListener mGoogleApiListener = new GoogleApiListener(); // Слушатель обновлений местоположения от Google API
     boolean mStarted;
     Messenger mMessenger;
@@ -64,6 +65,7 @@ public class GapiService extends IntentService {
     public void onCreate() {
         Log.d(TAG, "Service created");
         super.onCreate();
+        mSettings = ((App) getApplication()).getSettings();
         bindService(new Intent(this, MessagingService.class), mConnection,
                 BIND_AUTO_CREATE);
     }
@@ -224,13 +226,15 @@ public class GapiService extends IntentService {
         }
 
         private void requestLocationUpdates() {
-            Log.d(TAG, "requestLocationUpdates: Connecting to FusedLocationApi...");
+            Log.d(TAG, "requestLocationUpdates: request location updates, timeout="
+                    + mSettings.getTimeout());
             LocationRequest request = LocationRequest.create()
                     .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
                     .setInterval(MAX_UPDATE_INTERVAL)
-                    .setFastestInterval(MIN_UPDATE_INTERVAL);
+                    .setFastestInterval(mSettings.getTimeout());
             try {
-                LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, request, this);
+                LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient,
+                        request, this);
                 Log.d(TAG, "requestLocationUpdates: Connected to FusedLocationApi");
             } catch (Exception e) {
                 Log.w(TAG, "requestLocationUpdates: Unable to request location updates: ", e);
