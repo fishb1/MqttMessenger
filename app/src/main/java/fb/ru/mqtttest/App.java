@@ -24,7 +24,6 @@ public class App extends Application {
             mSettings.init(session);
         }
     };
-    ApiService mApiService;
 
     @Override
     public void onCreate() {
@@ -33,11 +32,6 @@ public class App extends Application {
         mUserSession = new UserSession(getSharedPreferences(
                 getPackageName() + ".session", MODE_PRIVATE));
         mUserSession.addListener(mUserSessionListener);
-        mApiService = new Retrofit.Builder()
-                .baseUrl(BuildConfig.REST_API_URL)
-                .addConverterFactory(GsonConverterFactory.create())
-                .build()
-                .create(ApiService.class);
     }
 
     public UserSession getUserSession() {
@@ -46,9 +40,5 @@ public class App extends Application {
 
     public Settings getSettings() {
         return mSettings;
-    }
-
-    public ApiService getApiService() {
-        return mApiService;
     }
 }

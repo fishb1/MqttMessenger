@@ -12,22 +12,26 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.inputmethod.EditorInfo;
-import android.widget.AutoCompleteTextView;
 import android.widget.EditText;
 import android.widget.TextView;
 
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.util.UUID;
 
 import javax.net.ssl.HttpsURLConnection;
 
 import fb.ru.mqtttest.App;
+import fb.ru.mqtttest.BuildConfig;
 import fb.ru.mqtttest.R;
+import fb.ru.mqtttest.common.Settings;
 import fb.ru.mqtttest.common.UserSession;
 import fb.ru.mqtttest.rest.ApiService;
 import fb.ru.mqtttest.rest.LoginRequestBody;
 import retrofit2.Call;
 import retrofit2.Response;
+import retrofit2.Retrofit;
+import retrofit2.converter.gson.GsonConverterFactory;
 
 /**
  * A login screen that offers login via login/password.
@@ -40,25 +44,28 @@ public class LoginActivity extends AppCompatActivity {
     private UserLoginTask mAuthTask = null;
 
     // UI references.
-    private AutoCompleteTextView mLoginView;
+    private EditText mAddressView;
+    private EditText mLoginView;
     private EditText mPasswordView;
+
     private View mProgressView;
     private View mLoginFormView;
     // Model references
     private UserSession mSession;
-    private ApiService mApiService;
+    private Settings mSettings;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         // TODO: Implement DI here
         mSession = ((App) getApplication()).getUserSession();
-        mApiService = ((App) getApplication()).getApiService();
+        mSettings = ((App) getApplication()).getSettings();
         // ----
         setContentView(R.layout.activity_login);
         // Set up the login form.
+        mAddressView = findViewById(R.id.address);
+        mAddressView.setText(mSettings.getRestApiUrl()); // Если затрется при повороте экрана, то ничего страшного...
         mLoginView = findViewById(R.id.login);
-
         mPasswordView = findViewById(R.id.password);
         mPasswordView.setOnEditorActionListener(new TextView.OnEditorActionListener() {
             @Override
@@ -80,6 +87,12 @@ public class LoginActivity extends AppCompatActivity {
 
         mLoginFormView = findViewById(R.id.login_form);
         mProgressView = findViewById(R.id.login_progress);
+
+        Object obj = new Object();
+        WeakReference ref = new WeakReference(obj);
+        System.out.println(ref.get() != null);
+        System.gc();
+        System.out.println(ref.get() != null);
     }
 
     /**
@@ -97,6 +110,7 @@ public class LoginActivity extends AppCompatActivity {
         mPasswordView.setError(null);
 
         // Store values at the time of the login attempt.
+        String address = mAddressView.getText().toString();
         String login = mLoginView.getText().toString();
         String password = mPasswordView.getText().toString();
 
@@ -104,12 +118,17 @@ public class LoginActivity extends AppCompatActivity {
         View focusView = null;
 
         // Check for a valid password, if the user entered one.
+        if (TextUtils.isEmpty(address)) {
+            mAddressView.setError(getString(R.string.error_field_required));
+            focusView = mAddressView;
+            cancel = true;
+        }
+        // Check for a valid password, if the user entered one.
         if (TextUtils.isEmpty(password)) {
             mPasswordView.setError(getString(R.string.error_field_required));
             focusView = mPasswordView;
             cancel = true;
         }
-
         // Check for a valid login address.
         if (TextUtils.isEmpty(login)) {
             mLoginView.setError(getString(R.string.error_field_required));
@@ -125,7 +144,7 @@ public class LoginActivity extends AppCompatActivity {
             // Show a progress spinner, and kick off a background task to
             // perform the user login attempt.
             showProgress(true);
-            mAuthTask = new UserLoginTask(login, password);
+            mAuthTask = new UserLoginTask(address, login, password);
             mAuthTask.execute((Void) null);
         }
     }
@@ -159,17 +178,24 @@ public class LoginActivity extends AppCompatActivity {
      */
     public class UserLoginTask extends AsyncTask<Void, Void, Boolean> {
 
+        private final String mAddress;
         private final String mLogin;
         private final String mPassword;
 
-        UserLoginTask(String login, String password) {
+        UserLoginTask(String address, String login, String password) {
+            mAddress = address;
             mLogin = login;
             mPassword = password;
         }
 
         @Override
         protected Boolean doInBackground(Void... params) {
-            Call<Void> loginCall = mApiService.login(new LoginRequestBody(mLogin, mPassword));
+            ApiService apiService = new Retrofit.Builder()
+                    .baseUrl(mAddress)
+                    .addConverterFactory(GsonConverterFactory.create())
+                    .build()
+                    .create(ApiService.class);
+            Call<Void> loginCall = apiService.login(new LoginRequestBody(mLogin, mPassword));
             try {
                 Response<Void> response = loginCall.execute();
                 if (response.code() == HttpsURLConnection.HTTP_OK) {
@@ -189,6 +215,7 @@ public class LoginActivity extends AppCompatActivity {
             mAuthTask = null;
             showProgress(false);
             if (success) {
+                mSettings.setRestApiUrl(mAddress);
                 startActivity(new Intent(LoginActivity.this, LauncherActivity.class));
                 finish();
             } else {

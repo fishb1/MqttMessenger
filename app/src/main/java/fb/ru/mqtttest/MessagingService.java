@@ -43,7 +43,7 @@ public class MessagingService extends Service {
         @Override
         public void onSettingsChanged(String settingName) {
             switch (settingName) {
-                case Settings.PREF_ADDRESS: {
+                case Settings.PREF_MQTT_BROKER: {
                     reconnect();
                 } break;
                 case Settings.PREF_SUBSCRIBE_TOPIC: {
@@ -98,7 +98,7 @@ public class MessagingService extends Service {
 
     private void connect() {
         // Инициализация MQTT клиента
-        mClient = new MqttAndroidClient(getApplicationContext(), mSettings.getAddress(),
+        mClient = new MqttAndroidClient(getApplicationContext(), mSettings.getBroker(),
                 mUserSession.getSid());
         mClient.setCallback(new MqttCallbackExtended() {
 
@@ -137,7 +137,7 @@ public class MessagingService extends Service {
         options.setUserName(mUserSession.getLogin());
         options.setPassword(mUserSession.getPassword().toCharArray());
         try {
-            Log.d(TAG, "Connecting to " + mSettings.getAddress());
+            Log.d(TAG, "Connecting to " + mSettings.getBroker());
             mClient.connect(options, null, new IMqttActionListener() {
                 @Override
                 public void onSuccess(IMqttToken asyncActionToken) {
@@ -152,7 +152,7 @@ public class MessagingService extends Service {
 
                 @Override
                 public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
-                    Log.d(TAG, "Failed to connect to " + mSettings.getAddress());
+                    Log.d(TAG, "Failed to connect to " + mSettings.getBroker());
                 }
             });
         } catch (MqttException ex){
