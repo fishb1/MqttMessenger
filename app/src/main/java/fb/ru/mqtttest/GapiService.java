@@ -146,6 +146,8 @@ public class GapiService extends IntentService {
         Location location = mGoogleApiListener.mBestLocation;
         if (location != null) {
             sendLocation(location);
+        } else {
+            Log.w(TAG, "sendLastLocation: last location is unknown");
         }
     }
     /**
@@ -201,8 +203,8 @@ public class GapiService extends IntentService {
         }
 
         private void disconnect() {
-            removeLocationUpdates();
             if (mGoogleApiClient != null && mGoogleApiClient.isConnected()) {
+                removeLocationUpdates();
                 mGoogleApiClient.disconnect();
             }
         }

@@ -17,6 +17,7 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
+import android.text.TextUtils;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -52,6 +53,9 @@ public class HomeActivity extends AppCompatActivity  {
     Button mStressTestButtonView;
     Handler mStressTestHandler = new Handler();
     boolean mStressTestStarted;
+    long mStressTestStartTime;
+    long mStressTestMsgCount;
+    AlertDialog mStressTestDialog;
 
     View mContentView;
     LogView mLogView;
@@ -119,6 +123,9 @@ public class HomeActivity extends AppCompatActivity  {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (mStressTestDialog != null) {
+            mStressTestDialog.cancel();
+        }
         if (isMessagingServiceBound) {
             unbindService(mMessagingServiceConnection);
             isMessagingServiceBound = false;
@@ -134,8 +141,10 @@ public class HomeActivity extends AppCompatActivity  {
     @Override
     protected void onPause() {
         super.onPause();
-        stopStressTest();
-        toggleStressTestButtonText();
+        if (mStressTestStarted) {
+            stopStressTest();
+            toggleStressTestButtonText();
+        }
     }
 
     @Override
@@ -254,12 +263,14 @@ public class HomeActivity extends AppCompatActivity  {
         dialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
             @Override
             public void onDismiss(DialogInterface dialog) {
-                stopStressTest();
+                if (mStressTestStarted) {
+                    stopStressTest();
+                }
             }
         });
         dialog.setCancelable(false);
-        AlertDialog alert = dialog.show();
-        mStressTestButtonView = alert.findViewById(R.id.btn_control);
+        mStressTestDialog = dialog.show();
+        mStressTestButtonView = mStressTestDialog.findViewById(R.id.btn_control);
         mStressTestButtonView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -271,17 +282,24 @@ public class HomeActivity extends AppCompatActivity  {
                 toggleStressTestButtonText();
             }
         });
-        mStressTestDialogMsgCountView = alert.findViewById(R.id.text_msg_count);
+        mStressTestDialogMsgCountView = mStressTestDialog.findViewById(R.id.text_msg_count);
+        mStressTestDialogMsgCountView.setText("20");
     }
 
     private void toggleStressTestButtonText() {
-        mStressTestButtonView.setText(mStressTestStarted ? "Stop" : "Start");
+        if (mStressTestButtonView != null) {
+            mStressTestButtonView.setText(mStressTestStarted ? "Stop" : "Start");
+        }
     }
 
     private void startStressTest() {
         Log.d(TAG, "Starting stress test");
         if (!mStressTestStarted) {
-            int count = Integer.valueOf(mStressTestDialogMsgCountView.getText().toString());
+            String strValue = mStressTestDialogMsgCountView.getText().toString();
+            if (TextUtils.isEmpty(strValue)) {
+                strValue = "0";
+            }
+            int count = Integer.valueOf(strValue);
             if (count <= 0) {
                 Snackbar.make(mContentView, "Message count less zero!", Snackbar.LENGTH_LONG)
                         .show();
@@ -290,8 +308,8 @@ public class HomeActivity extends AppCompatActivity  {
             long delay = 1000 / count;
             new StressTestRunnable(mStressTestHandler, delay).run();
             mStressTestStarted = true;
-            Log.d(TAG, "Stress test started");
-            Log.d(TAG, "Delay: " + delay);
+            Log.d(TAG, "Stress test started: speed=" + strValue + " msg in second");
+            mLogView.setMuted(true);
         } else {
             Log.w(TAG, "Stress test already running!");
         }
@@ -301,8 +319,12 @@ public class HomeActivity extends AppCompatActivity  {
         Log.d(TAG, "Stopping stress test");
         if (mStressTestStarted) {
             mStressTestHandler.removeCallbacksAndMessages(null);
+            mLogView.setMuted(false);
             mStressTestStarted = false;
             Log.d(TAG, "Stress test stopped");
+            Log.d(TAG, String.format("Running time: %s sec", (System.currentTimeMillis() - mStressTestStartTime) / 1000));
+            Log.d(TAG, String.format("Message count: %s", mStressTestMsgCount));
+
         } else {
             Log.d(TAG, "Stress test not started!");
         }
@@ -313,13 +335,16 @@ public class HomeActivity extends AppCompatActivity  {
         final Handler mHandler;
         final long mDelay;
 
-        public StressTestRunnable(Handler h, long d) {
+        StressTestRunnable(Handler h, long d) {
+            mStressTestMsgCount = 0;
+            mStressTestStartTime = System.currentTimeMillis();
             mHandler = h;
             mDelay = d;
         }
 
         @Override
         public void run() {
+            mStressTestMsgCount++;
             mGapiService.sendLastLocation();
             mHandler.postDelayed(this, mDelay);
         }
