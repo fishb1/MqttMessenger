@@ -6,8 +6,8 @@ android {
         applicationId "fb.ru.mqtttest"
         minSdkVersion 19
         targetSdkVersion 26
-        versionCode 3
-        versionName "1.03"
+        versionCode 4
+        versionName "1.04"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
