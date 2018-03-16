@@ -3,6 +3,7 @@ package fb.ru.mqtttest.common;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
+import android.text.TextUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,13 +21,13 @@ public class Settings implements SharedPreferences.OnSharedPreferenceChangeListe
     public static final String TAG = "Settings";
 
     private static final String DEFAULT_MQTT_BROKER = "tcp://176.112.218.148:1883";
-    private static final String PATTERN_PUBLISH_TOPIC = "%s/echo/req";
-    private static final String PATTERN_SUBSCRIBE_TOPIC = "%s/echo/resp";
-    private static final String DEFAULT_TIMEOUT = "1000";
+    private static final String PATTERN_PUB_TOPIC = "%s/echo/req";
+    private static final String PATTERN_SUB_TOPIC = "%s/echo/resp";
+    private static final long DEFAULT_TIMEOUT = 1000;
 
     public static final String PREF_MQTT_BROKER = "PREF_MQTT_BROKER";
-    public static final String PREF_PUBLISH_TOPIC = "PREF_PUBLISH_TOPIC";
-    public static final String PREF_SUBSCRIBE_TOPIC = "PREF_SUBSCRIBE_TOPIC";
+    public static final String PREF_PUB_TOPIC = "PREF_PUB_TOPIC";
+    public static final String PREF_SUB_TOPIC = "PREF_SUB_TOPIC";
     public static final String PREF_TIMEOUT = "PREF_TIMEOUT";
     public static final String PREF_REST_API_URL = "PREF_REST_API_URL";
 
@@ -50,29 +51,32 @@ public class Settings implements SharedPreferences.OnSharedPreferenceChangeListe
         // Да, путь все кто хочет мониторит сессию и по новой подключаются
         mListeners.clear();
         // Подставить имя пользователя в название каналов
-        mPrefs.edit()
-                .putString(PREF_PUBLISH_TOPIC,
-                        String.format(PATTERN_PUBLISH_TOPIC, session.getLogin()))
-                .putString(PREF_SUBSCRIBE_TOPIC,
-                        String.format(PATTERN_SUBSCRIBE_TOPIC, session.getLogin()))
-                .apply();
-
+        SharedPreferences.Editor editor = mPrefs.edit();
+        if (TextUtils.isEmpty(getBroker())) {
+            editor.putString(PREF_MQTT_BROKER, DEFAULT_MQTT_BROKER);
+        }
+        if (getTimeout() < 0) {
+            editor.putString(PREF_TIMEOUT, String.valueOf(DEFAULT_TIMEOUT));
+        }
+        editor.putString(PREF_PUB_TOPIC, String.format(PATTERN_PUB_TOPIC, session.getLogin()));
+        editor.putString(PREF_SUB_TOPIC, String.format(PATTERN_SUB_TOPIC, session.getLogin()));
+        editor.apply();
     }
 
     public String getBroker() {
-        return mPrefs.getString(PREF_MQTT_BROKER, DEFAULT_MQTT_BROKER);
+        return mPrefs.getString(PREF_MQTT_BROKER, "");
     }
 
     public String getPublishTopic() {
-        return mPrefs.getString(PREF_PUBLISH_TOPIC, "");
+        return mPrefs.getString(PREF_PUB_TOPIC, "");
     }
 
     public String getSubscribeTopic() {
-        return mPrefs.getString(PREF_SUBSCRIBE_TOPIC, "");
+        return mPrefs.getString(PREF_SUB_TOPIC, "");
     }
 
     public long getTimeout() {
-        return Long.valueOf(mPrefs.getString(PREF_TIMEOUT, DEFAULT_TIMEOUT));
+        return Long.valueOf(mPrefs.getString(PREF_TIMEOUT, "-1"));
     }
 
     public String getRestApiUrl() {

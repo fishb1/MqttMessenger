@@ -46,7 +46,7 @@ public class MessagingService extends Service {
                 case Settings.PREF_MQTT_BROKER: {
                     reconnect();
                 } break;
-                case Settings.PREF_SUBSCRIBE_TOPIC: {
+                case Settings.PREF_SUB_TOPIC: {
                     resubscribe();
                 } break;
             }

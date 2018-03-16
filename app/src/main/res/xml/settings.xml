@@ -12,12 +12,12 @@
         android:summary="Address of MQTT server" />
 
     <EditTextPreference
-        android:key="PREF_PUBLISH_TOPIC"
+        android:key="PREF_PUB_TOPIC"
         android:title="Publish topic"
         android:summary="Topic for sending messages" />
 
     <EditTextPreference
-        android:key="PREF_SUBSCRIBE_TOPIC"
+        android:key="PREF_SUB_TOPIC"
         android:title="Subscribe topic"
         android:summary="Topic for receiving messages" />
 
