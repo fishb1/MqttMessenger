@@ -1,5 +1,6 @@
 package fb.ru.mqtttest.common;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
@@ -8,7 +9,6 @@ import android.text.TextUtils;
 import java.util.ArrayList;
 import java.util.List;
 
-import fb.ru.mqtttest.BuildConfig;
 import fb.ru.mqtttest.common.logger.Log;
 
 /**
@@ -20,10 +20,11 @@ public class Settings implements SharedPreferences.OnSharedPreferenceChangeListe
 
     public static final String TAG = "Settings";
 
-    private static final String DEFAULT_MQTT_BROKER = "tcp://176.112.218.148:1883";
-    private static final String PATTERN_PUB_TOPIC = "%s/echo/req";
-    private static final String PATTERN_SUB_TOPIC = "%s/echo/resp";
-    private static final long DEFAULT_TIMEOUT = 1000;
+    public static final String DEFAULT_MQTT_BROKER = "tcp://176.112.218.148:1883";
+    public static final String DEFAULT_REST_API_URL = "http://176.112.218.148:3000";
+    public static final String PATTERN_PUB_TOPIC = "%s/echo/req";
+    public static final String PATTERN_SUB_TOPIC = "%s/echo/resp";
+    public static final long DEFAULT_TIMEOUT = 1000;
 
     public static final String PREF_MQTT_BROKER = "PREF_MQTT_BROKER";
     public static final String PREF_PUB_TOPIC = "PREF_PUB_TOPIC";
@@ -33,6 +34,7 @@ public class Settings implements SharedPreferences.OnSharedPreferenceChangeListe
 
     private final SharedPreferences mPrefs;
     private final List<OnSettingsChangedListener> mListeners = new ArrayList<>();
+    private boolean mInitInProgress;
 
     public Settings(Context context) {
         mPrefs = PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
@@ -47,11 +49,17 @@ public class Settings implements SharedPreferences.OnSharedPreferenceChangeListe
      *
      * @param session параметры сессии пользователя
      */
-    public void init(UserSession session) {
-        // Да, путь все кто хочет мониторит сессию и по новой подключаются
-        mListeners.clear();
+    @SuppressLint("ApplySharedPref")
+    public void init(UserSession session, boolean clear) {
+        mInitInProgress = true;
         // Подставить имя пользователя в название каналов
         SharedPreferences.Editor editor = mPrefs.edit();
+        if (clear) {
+            editor.clear().commit();
+        }
+        if (TextUtils.isEmpty(getRestApiUrl())) {
+            editor.putString(PREF_REST_API_URL, DEFAULT_REST_API_URL);
+        }
         if (TextUtils.isEmpty(getBroker())) {
             editor.putString(PREF_MQTT_BROKER, DEFAULT_MQTT_BROKER);
         }
@@ -61,6 +69,8 @@ public class Settings implements SharedPreferences.OnSharedPreferenceChangeListe
         editor.putString(PREF_PUB_TOPIC, String.format(PATTERN_PUB_TOPIC, session.getLogin()));
         editor.putString(PREF_SUB_TOPIC, String.format(PATTERN_SUB_TOPIC, session.getLogin()));
         editor.apply();
+        mInitInProgress = false;
+        printSettings();
     }
 
     public String getBroker() {
@@ -80,7 +90,7 @@ public class Settings implements SharedPreferences.OnSharedPreferenceChangeListe
     }
 
     public String getRestApiUrl() {
-        return mPrefs.getString(PREF_REST_API_URL, BuildConfig.REST_API_URL);
+        return mPrefs.getString(PREF_REST_API_URL, "");
     }
 
     public void setRestApiUrl(String url) {
@@ -89,7 +99,9 @@ public class Settings implements SharedPreferences.OnSharedPreferenceChangeListe
 
     @Override
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-        printSettings();
+        if (!mInitInProgress) {
+            printSettings();
+        }
         notifyListeners(key);
     }
 

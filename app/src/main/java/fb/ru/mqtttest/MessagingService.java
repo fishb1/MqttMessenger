@@ -166,6 +166,7 @@ public class MessagingService extends Service {
         try {
             if (mClient.isConnected()) {
                 mClient.disconnect();
+                mCurrentTopic = null; // Подписка тоже снимется
             } else {
                 connect();
             }
@@ -178,7 +179,10 @@ public class MessagingService extends Service {
         Log.d(TAG, "Resubscribing...");
         if (!TextUtils.isEmpty(mCurrentTopic)) {
             try {
-                mClient.unsubscribe(mCurrentTopic);
+                if (!TextUtils.isEmpty(mCurrentTopic)) {
+                    mClient.unsubscribe(mCurrentTopic);
+                    mCurrentTopic = null;
+                }
             } catch (MqttException e) {
                 Log.e(TAG, "Unsubscribe error", e);
             }

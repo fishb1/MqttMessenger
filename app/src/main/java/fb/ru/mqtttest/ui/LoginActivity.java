@@ -22,7 +22,6 @@ import java.util.UUID;
 import javax.net.ssl.HttpsURLConnection;
 
 import fb.ru.mqtttest.App;
-import fb.ru.mqtttest.BuildConfig;
 import fb.ru.mqtttest.R;
 import fb.ru.mqtttest.common.Settings;
 import fb.ru.mqtttest.common.UserSession;
@@ -64,7 +63,8 @@ public class LoginActivity extends AppCompatActivity {
         setContentView(R.layout.activity_login);
         // Set up the login form.
         mAddressView = findViewById(R.id.address);
-        mAddressView.setText(mSettings.getRestApiUrl()); // Если затрется при повороте экрана, то ничего страшного...
+        String url = mSettings.getRestApiUrl();
+        mAddressView.setText(TextUtils.isEmpty(url) ? Settings.DEFAULT_REST_API_URL : url); // Если затрется при повороте экрана, то ничего страшного...
         mLoginView = findViewById(R.id.login);
         mPasswordView = findViewById(R.id.password);
         mPasswordView.setOnEditorActionListener(new TextView.OnEditorActionListener() {
@@ -84,15 +84,8 @@ public class LoginActivity extends AppCompatActivity {
                 attemptLogin();
             }
         });
-
         mLoginFormView = findViewById(R.id.login_form);
         mProgressView = findViewById(R.id.login_progress);
-
-        Object obj = new Object();
-        WeakReference ref = new WeakReference(obj);
-        System.out.println(ref.get() != null);
-        System.gc();
-        System.out.println(ref.get() != null);
     }
 
     /**

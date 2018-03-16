@@ -9,7 +9,6 @@ android {
         versionCode 3
         versionName "1.03"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
-        buildConfigField 'String', 'REST_API_URL', '"http://176.112.218.148:3000/"'
     }
     buildTypes {
         release {

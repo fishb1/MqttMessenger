@@ -20,4 +20,5 @@
     <string name="service_message">"Automatic location updates %s"</string>
     <string name="message_hint">Message to MQTT in JSON format</string>
     <string name="topic_hint">Topic</string>
+    <string name="reset_settings">Reset settings</string>
 </resources>
