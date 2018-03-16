@@ -23,8 +23,8 @@
 
     <EditTextPreference
         android:key="PREF_TIMEOUT"
-        android:title="Timeout"
-        android:summary="Timeout between automatic messages in ms"
+        android:title="Interval"
+        android:summary="Location update fastest interval"
         android:inputType="number" />
 
 </PreferenceScreen>

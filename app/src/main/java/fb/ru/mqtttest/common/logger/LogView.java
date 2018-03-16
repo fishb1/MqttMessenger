@@ -25,6 +25,8 @@ import android.util.AttributeSet;
 */
 public class LogView extends AppCompatTextView implements Logger {
 
+    private boolean mMuted;
+
     public LogView(Context context) {
         super(context);
     }
@@ -37,6 +39,9 @@ public class LogView extends AppCompatTextView implements Logger {
         super(context, attrs, defStyle);
     }
 
+    public void setMuted(boolean muted) {
+        mMuted = muted;
+    }
     /**
      * Formats the log data and prints it out to the LogView.
      * @param priority Log level of the data being logged.  Verbose, Error, etc.
@@ -47,6 +52,12 @@ public class LogView extends AppCompatTextView implements Logger {
      */
     @Override
     public void println(int priority, String tag, String msg, Throwable tr) {
+        // Don't mess log while stress test running
+        if (mMuted && (android.util.Log.VERBOSE == priority
+                || android.util.Log.DEBUG == priority
+                || android.util.Log.INFO == priority)) {
+            return;
+        }
         String priorityStr = null;
        // For the purposes of this View, we want to print the priority as readable text.
         switch(priority) {

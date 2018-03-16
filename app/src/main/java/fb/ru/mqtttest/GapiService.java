@@ -35,7 +35,6 @@ public class GapiService extends IntentService {
 
     private final static int NOTIFICATION_ID = 777;
     private static final long MAX_UPDATE_INTERVAL = TimeUnit.SECONDS.toMillis(30);
-//    private static final long MIN_UPDATE_INTERVAL = TimeUnit.SECONDS.toMillis(10);
 
     Settings mSettings;
     Settings.OnSettingsChangedListener mSettingListener = new Settings.OnSettingsChangedListener() {
@@ -138,6 +137,15 @@ public class GapiService extends IntentService {
             mMessenger.send(msg);
         } catch (RemoteException e) {
             Log.e(TAG, "Error", e);
+        }
+    }
+    /**
+     * Отправить послудние координаты. Нужно для стресс теста.
+     */
+    public void sendLastLocation() {
+        Location location = mGoogleApiListener.mBestLocation;
+        if (location != null) {
+            sendLocation(location);
         }
     }
     /**

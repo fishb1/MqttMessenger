@@ -2,21 +2,26 @@ package fb.ru.mqtttest.ui;
 
 import android.Manifest;
 import android.content.ComponentName;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
@@ -34,6 +39,7 @@ import fb.ru.mqtttest.common.logger.AndroidLogWrapper;
 import fb.ru.mqtttest.common.logger.FilterTagLogger;
 import fb.ru.mqtttest.common.logger.Log;
 import fb.ru.mqtttest.common.logger.LogFragment;
+import fb.ru.mqtttest.common.logger.LogView;
 
 /**
  * Основное активити.
@@ -42,7 +48,13 @@ public class HomeActivity extends AppCompatActivity  {
 
     private static final String TAG = "HomeActivity";
 
+    EditText mStressTestDialogMsgCountView;
+    Button mStressTestButtonView;
+    Handler mStressTestHandler = new Handler();
+    boolean mStressTestStarted;
+
     View mContentView;
+    LogView mLogView;
     UserSession mSession;
     Settings mSettings;
     // Поля для взимодействия с службой сообщений (чтобы вручную отправлять сообщения)
@@ -120,6 +132,13 @@ public class HomeActivity extends AppCompatActivity  {
     }
 
     @Override
+    protected void onPause() {
+        super.onPause();
+        stopStressTest();
+        toggleStressTestButtonText();
+    }
+
+    @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == 1 && resultCode == RESULT_OK) {
             publishMessage(data.getStringExtra(MessageActivity.EXTRA_MESSAGE));
@@ -144,6 +163,9 @@ public class HomeActivity extends AppCompatActivity  {
                 return true;
             case R.id.menu_item_control_service:
                 toggleService();
+                return true;
+            case R.id.menu_item_test:
+                showStressTestDialog();
                 return true;
             default:
                 return super.onOptionsItemSelected(item);
@@ -221,6 +243,85 @@ public class HomeActivity extends AppCompatActivity  {
         FilterTagLogger filter = new FilterTagLogger(TAG, Settings.TAG, GapiService.TAG, MessagingService.TAG);
         wrapper.setNext(filter);
         LogFragment logFragment = (LogFragment) getSupportFragmentManager().findFragmentById(R.id.content);
-        filter.setNext(logFragment.getLogView());
+        filter.setNext(mLogView = logFragment.getLogView());
+    }
+
+    private void showStressTestDialog() {
+        AlertDialog.Builder dialog = new AlertDialog.Builder(this);
+        dialog.setView(R.layout.stress_test_dialog);
+        dialog.setTitle("Stress test");
+        dialog.setNegativeButton(android.R.string.cancel, null);
+        dialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
+            @Override
+            public void onDismiss(DialogInterface dialog) {
+                stopStressTest();
+            }
+        });
+        dialog.setCancelable(false);
+        AlertDialog alert = dialog.show();
+        mStressTestButtonView = alert.findViewById(R.id.btn_control);
+        mStressTestButtonView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (!mStressTestStarted) {
+                    startStressTest();
+                } else {
+                    stopStressTest();
+                }
+                toggleStressTestButtonText();
+            }
+        });
+        mStressTestDialogMsgCountView = alert.findViewById(R.id.text_msg_count);
+    }
+
+    private void toggleStressTestButtonText() {
+        mStressTestButtonView.setText(mStressTestStarted ? "Stop" : "Start");
+    }
+
+    private void startStressTest() {
+        Log.d(TAG, "Starting stress test");
+        if (!mStressTestStarted) {
+            int count = Integer.valueOf(mStressTestDialogMsgCountView.getText().toString());
+            if (count <= 0) {
+                Snackbar.make(mContentView, "Message count less zero!", Snackbar.LENGTH_LONG)
+                        .show();
+                return;
+            }
+            long delay = 1000 / count;
+            new StressTestRunnable(mStressTestHandler, delay).run();
+            mStressTestStarted = true;
+            Log.d(TAG, "Stress test started");
+            Log.d(TAG, "Delay: " + delay);
+        } else {
+            Log.w(TAG, "Stress test already running!");
+        }
+    }
+
+    private void stopStressTest() {
+        Log.d(TAG, "Stopping stress test");
+        if (mStressTestStarted) {
+            mStressTestHandler.removeCallbacksAndMessages(null);
+            mStressTestStarted = false;
+            Log.d(TAG, "Stress test stopped");
+        } else {
+            Log.d(TAG, "Stress test not started!");
+        }
+    }
+
+    private class StressTestRunnable implements Runnable {
+
+        final Handler mHandler;
+        final long mDelay;
+
+        public StressTestRunnable(Handler h, long d) {
+            mHandler = h;
+            mDelay = d;
+        }
+
+        @Override
+        public void run() {
+            mGapiService.sendLastLocation();
+            mHandler.postDelayed(this, mDelay);
+        }
     }
 }
