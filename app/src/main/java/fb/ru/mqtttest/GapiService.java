@@ -5,6 +5,7 @@ import android.app.LauncherActivity;
 import android.app.Notification;
 import android.app.PendingIntent;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.location.Location;
@@ -45,7 +46,7 @@ public class GapiService extends IntentService {
             }
         }
     };
-    GoogleApiListener mGoogleApiListener = new GoogleApiListener(); // Слушатель обновлений местоположения от Google API
+    GoogleApiListener mGoogleApiListener; // Слушатель обновлений местоположения от Google API
     boolean mStarted;
     Messenger mMessenger;
     boolean mMessengerServiceBound;
@@ -75,6 +76,7 @@ public class GapiService extends IntentService {
         mSettings = ((App) getApplication()).getSettings();
         bindService(new Intent(this, MessagingService.class), mConnection,
                 BIND_AUTO_CREATE);
+        mGoogleApiListener = new GoogleApiListener();
     }
 
     @Override
@@ -147,7 +149,7 @@ public class GapiService extends IntentService {
         if (location != null) {
             sendLocation(location);
         } else {
-            Log.w(TAG, "sendLastLocation: last location is unknown");
+            sendLocation(new Location("Mock location"));
         }
     }
     /**
@@ -193,12 +195,12 @@ public class GapiService extends IntentService {
         private GoogleApiClient mGoogleApiClient;
 
         void connect() {
-            // Начать принимать обновление местоположения
             mGoogleApiClient = new GoogleApiClient.Builder(getApplicationContext())
-                    .addConnectionCallbacks(mGoogleApiListener)
-                    .addOnConnectionFailedListener(mGoogleApiListener)
+                    .addConnectionCallbacks(this)
+                    .addOnConnectionFailedListener(this)
                     .addApi(LocationServices.API)
                     .build();
+            // Начать принимать обновление местоположения
             mGoogleApiClient.connect();
         }
 
