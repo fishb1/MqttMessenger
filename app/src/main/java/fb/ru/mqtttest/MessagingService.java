@@ -54,12 +54,6 @@ public class MessagingService extends Service {
     };
 
     private UserSession mUserSession;
-    private UserSession.Listener mSessionListener = new UserSession.Listener() {
-        @Override
-        public void onSessionStop(UserSession session) {
-            stopSelf();
-        }
-    };
     private Messenger mMessenger; // Месэйджер, который прнимает сообщение от других компонент приложения и отсылает в MQTT. Юзается компонентами через его биндер
 
     public MessagingService() {
@@ -71,7 +65,6 @@ public class MessagingService extends Service {
         super.onCreate();
         mMessenger = new Messenger(new MessageHandler(this));
         mUserSession = ((App) getApplication()).getUserSession();
-        mUserSession.addListener(mSessionListener);
         mSettings = ((App) getApplication()).getSettings();
         mSettings.addOnSettingsChangedListener(mSettingsListener);
         connect();
@@ -81,7 +74,6 @@ public class MessagingService extends Service {
     public void onDestroy() {
         Log.d(TAG, "Service destroyed");
         super.onDestroy();
-        mUserSession.removeListener(mSessionListener);
         mSettings.removeOnSettingsChangedListener(mSettingsListener);
         try {
             mClient.disconnect();

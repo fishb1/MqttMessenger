@@ -35,6 +35,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import fb.ru.mqtttest.common.Settings;
+import fb.ru.mqtttest.common.UserSession;
 import fb.ru.mqtttest.common.logger.Log;
 
 /**
@@ -57,6 +58,15 @@ public class LocationUpdatesService extends Service {
     private Handler mServiceHandler;
     private boolean mChangingConfiguration;
     private boolean mRequestingLocationUpdates;
+    private UserSession mSession;
+    private UserSession.Listener mSessionListener = new UserSession.Listener() {
+        @Override
+        public void onSessionStop(UserSession session) {
+            if (mRequestingLocationUpdates) {
+                removeLocationUpdates();
+            }
+        }
+    };
     private Settings mSettings;
     private Settings.OnSettingsChangedListener mSettingListener = new Settings.OnSettingsChangedListener() {
         @Override
@@ -92,7 +102,11 @@ public class LocationUpdatesService extends Service {
 
     @Override
     public void onCreate() {
+        mSession = ((App) getApplication()).getUserSession();
+        // Remove updates if user logged out
+        mSession.addListener(mSessionListener);
         mSettings = ((App) getApplication()).getSettings();
+        // Recreate update if interval changed by user
         mSettings.addOnSettingsChangedListener(mSettingListener);
         bindService(new Intent(this, MessagingService.class), mConnection,
                 BIND_AUTO_CREATE);
@@ -172,6 +186,9 @@ public class LocationUpdatesService extends Service {
 
     @Override
     public void onDestroy() {
+        Log.d(TAG, "Service destroyed");
+        mSession.removeListener(mSessionListener);
+        mSettings.removeOnSettingsChangedListener(mSettingListener);
         mServiceHandler.removeCallbacksAndMessages(null);
         if (mMessengerServiceBound) {
             unbindService(mConnection);
