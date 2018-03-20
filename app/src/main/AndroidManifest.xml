@@ -42,12 +42,8 @@
         <service
             android:name="org.eclipse.paho.android.service.MqttService"
             android:exported="false" />
-        <service
-            android:name=".MessagingService"
-            android:exported="false" />
-        <service
-            android:name=".GapiService"
-            android:exported="false" />
+        <service android:name=".MessagingService" android:exported="false" />
+        <service android:name=".LocationUpdatesService" android:exported="false" />
 
     </application>
 </manifest>
