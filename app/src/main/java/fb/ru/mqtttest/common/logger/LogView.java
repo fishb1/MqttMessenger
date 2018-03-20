@@ -15,8 +15,9 @@
  */
 package fb.ru.mqtttest.common.logger;
 
-import android.app.Activity;
 import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
 import android.support.v7.widget.AppCompatTextView;
 import android.util.AttributeSet;
 
@@ -26,6 +27,7 @@ import android.util.AttributeSet;
 public class LogView extends AppCompatTextView implements Logger {
 
     private boolean mMuted;
+    private Handler mMainThread = new Handler(Looper.getMainLooper());
 
     public LogView(Context context) {
         super(context);
@@ -97,13 +99,13 @@ public class LogView extends AppCompatTextView implements Logger {
         appendIfNotNull(outputBuilder, exceptionStr, delimiter);
         // In case this was originally called from an AsyncTask or some other off-UI thread,
         // make sure the update occurs within the UI thread.
-        ((Activity) getContext()).runOnUiThread( (new Thread(new Runnable() {
+        mMainThread.post(new Runnable() {
             @Override
             public void run() {
                 // Display the text we just generated within the LogView.
                 appendToLog(outputBuilder.toString());
             }
-        })));
+        });
     }
     /** Takes a string and adds to it, with a separator, if the bit to be added isn't null. Since
      * the logger takes so many arguments that might be null, this method helps cut out some of the
