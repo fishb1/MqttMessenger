@@ -11,6 +11,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
+import android.support.annotation.NonNull;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
@@ -44,9 +45,12 @@ import fb.ru.mqtttest.common.logger.LogView;
 /**
  * Основное активити.
  */
-public class HomeActivity extends AppCompatActivity  {
+public class HomeActivity extends AppCompatActivity {
 
     private static final String TAG = "HomeActivity";
+
+    private static int CODE_INPUT_MESSAGE = 1;
+    private static int CODE_LOCATION_PERMISSION = 2;
 
     EditText mStressTestDialogMsgCountView;
     Button mStressTestButtonView;
@@ -105,18 +109,23 @@ public class HomeActivity extends AppCompatActivity  {
         mSettings = ((App) getApplication()).getSettings();
         bindService(new Intent(this, MessagingService.class),
                 mMessagingServiceConnection, BIND_AUTO_CREATE);
-        bindService(new Intent(this, LocationUpdatesService.class),
-                mGapiServiceConnection, BIND_AUTO_CREATE);
-
+        if (checkFineLocationPermission()) {
+            bindLocationUpdateService();
+        }
         findViewById(R.id.fab_input_message).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 startActivityForResult(new Intent(HomeActivity.this,
-                        MessageActivity.class), 1);
+                        MessageActivity.class), CODE_INPUT_MESSAGE);
             }
         });
         mContentView = findViewById(R.id.content);
         initLogger(); // Initialize the logger (don't forget return original logger back)
+    }
+
+    private void bindLocationUpdateService() {
+        bindService(new Intent(this, LocationUpdatesService.class),
+                mGapiServiceConnection, BIND_AUTO_CREATE);
     }
 
     @Override
@@ -148,7 +157,7 @@ public class HomeActivity extends AppCompatActivity  {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode == 1 && resultCode == RESULT_OK) {
+        if (requestCode == CODE_INPUT_MESSAGE && resultCode == RESULT_OK) {
             publishMessage(data.getStringExtra(MessageActivity.EXTRA_MESSAGE));
         }
     }
@@ -208,7 +217,8 @@ public class HomeActivity extends AppCompatActivity  {
             }
             invalidateOptionsMenu();
             Snackbar.make(mContentView, getString(R.string.service_message,
-                    mLocationService.isStarted() ? "started" : "stopped"), Snackbar.LENGTH_LONG).show();
+                    mLocationService.isStarted() ? "started" : "stopped"),
+                    Snackbar.LENGTH_LONG).show();
         }
     }
 
@@ -216,17 +226,29 @@ public class HomeActivity extends AppCompatActivity  {
         if (ContextCompat.checkSelfPermission(this,
                 Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this,
-                    new String[] { Manifest.permission.ACCESS_FINE_LOCATION }, 2);
+                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                    CODE_LOCATION_PERMISSION);
             return false;
         }
         return true;
     }
 
     @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        if (requestCode == CODE_LOCATION_PERMISSION) {
+            String permission = permissions[0];
+            if (permission != null && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                bindLocationUpdateService();
+            }
+        }
+    }
+
+    @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
         MenuItem toggleServiceItem = menu.findItem(R.id.menu_item_control_service);
         if (toggleServiceItem != null) {
-            boolean bound =  mLocationService != null && isGapiServiceBound;
+            boolean bound = mLocationService != null && isGapiServiceBound;
             toggleServiceItem.setEnabled(bound);
             boolean started = bound && mLocationService.isStarted();
             toggleServiceItem.setChecked(started);
@@ -279,7 +301,7 @@ public class HomeActivity extends AppCompatActivity  {
             }
         });
         mStressTestDialogMsgCountView = mStressTestDialog.findViewById(R.id.text_msg_count);
-        mStressTestDialogMsgCountView.setText("20");
+        mStressTestDialogMsgCountView.setText(String.valueOf(20));
     }
 
     private void toggleStressTestButtonText() {
