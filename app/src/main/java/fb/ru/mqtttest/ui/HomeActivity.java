@@ -9,6 +9,7 @@ import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.Message;
 import android.os.Messenger;
 import android.support.annotation.NonNull;
@@ -29,9 +30,10 @@ import com.google.gson.reflect.TypeToken;
 
 import java.lang.reflect.Type;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import fb.ru.mqtttest.App;
-import fb.ru.mqtttest.LocationUpdatesService;
+import fb.ru.mqtttest.GeoService2;
 import fb.ru.mqtttest.MessagingService;
 import fb.ru.mqtttest.R;
 import fb.ru.mqtttest.common.Settings;
@@ -82,12 +84,12 @@ public class HomeActivity extends AppCompatActivity {
     };
     // Поля для взаимодействия со службой геолокации
     boolean isGapiServiceBound;
-    LocationUpdatesService mLocationService;
+    GeoService2 mLocationService;
     ServiceConnection mGapiServiceConnection = new ServiceConnection() {
 
         @Override
         public void onServiceConnected(ComponentName name, IBinder binder) {
-            mLocationService = ((LocationUpdatesService.LocalBinder) binder).getService();
+            mLocationService = ((GeoService2.LocalBinder) binder).getService();
             isGapiServiceBound = true;
             invalidateOptionsMenu();
         }
@@ -98,7 +100,7 @@ public class HomeActivity extends AppCompatActivity {
             invalidateOptionsMenu();
         }
     };
-
+    Handler mHandler = new Handler(Looper.getMainLooper());
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -124,7 +126,7 @@ public class HomeActivity extends AppCompatActivity {
     }
 
     private void bindLocationUpdateService() {
-        bindService(new Intent(this, LocationUpdatesService.class),
+        bindService(new Intent(this, GeoService2.class),
                 mGapiServiceConnection, BIND_AUTO_CREATE);
     }
 
@@ -205,19 +207,29 @@ public class HomeActivity extends AppCompatActivity {
     }
 
     private void toggleService() {
-        if (mLocationService != null && isGapiServiceBound) {
-            if (mLocationService.isStarted()) {
+        if (isGapiServiceBound) {
+            if (mLocationService.isRequesting()) {
                 Log.d(TAG, "Остановка службы обновления геолокации");
                 mLocationService.removeLocationUpdates();
+                mHandler.removeCallbacksAndMessages(null);
             } else {
                 Log.d(TAG, "Запуск службы обновления геолокации");
                 if (checkFineLocationPermission()) {
                     mLocationService.requestLocationUpdates();
+                    final long timeout = TimeUnit.SECONDS.toMillis(30);
+                    final Runnable task = new Runnable() {
+                        @Override
+                        public void run() {
+                            mLocationService.sendLastLocation(mMessenger);
+                            mHandler.postDelayed(this, timeout);
+                        }
+                    };
+                    mHandler.postDelayed(task, timeout);
                 }
             }
             invalidateOptionsMenu();
             Snackbar.make(mContentView, getString(R.string.service_message,
-                    mLocationService.isStarted() ? "started" : "stopped"),
+                    mLocationService.isRequesting() ? "started" : "stopped"),
                     Snackbar.LENGTH_LONG).show();
         }
     }
@@ -248,9 +260,8 @@ public class HomeActivity extends AppCompatActivity {
     public boolean onPrepareOptionsMenu(Menu menu) {
         MenuItem toggleServiceItem = menu.findItem(R.id.menu_item_control_service);
         if (toggleServiceItem != null) {
-            boolean bound = mLocationService != null && isGapiServiceBound;
-            toggleServiceItem.setEnabled(bound);
-            boolean started = bound && mLocationService.isStarted();
+            toggleServiceItem.setEnabled(isGapiServiceBound);
+            boolean started = isGapiServiceBound && mLocationService.isRequesting();
             toggleServiceItem.setChecked(started);
             toggleServiceItem.setTitle(started ? R.string.stop_service : R.string.start_service);
         }
@@ -266,7 +277,7 @@ public class HomeActivity extends AppCompatActivity {
     private void initLogger() {
         AndroidLogWrapper wrapper = new AndroidLogWrapper();
         Log.setLogger(wrapper);
-        FilterTagLogger filter = new FilterTagLogger(TAG, Settings.TAG, LocationUpdatesService.TAG,
+        FilterTagLogger filter = new FilterTagLogger(TAG, Settings.TAG, GeoService2.TAG,
                 MessagingService.TAG);
         wrapper.setNext(filter);
         LogFragment logFragment = (LogFragment) getSupportFragmentManager().findFragmentById(R.id.content);
@@ -363,7 +374,7 @@ public class HomeActivity extends AppCompatActivity {
         @Override
         public void run() {
             mStressTestMsgCount++;
-            mLocationService.sendLastLocation();
+            mLocationService.sendLastLocation(mMessenger);
             mHandler.postDelayed(this, mDelay);
         }
     }

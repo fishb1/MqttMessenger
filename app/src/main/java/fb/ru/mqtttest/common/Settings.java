@@ -73,7 +73,7 @@ public class Settings implements SharedPreferences.OnSharedPreferenceChangeListe
         printSettings();
     }
 
-    public String getBroker() {
+    private String getBroker() {
         return mPrefs.getString(PREF_MQTT_BROKER, "");
     }
 
