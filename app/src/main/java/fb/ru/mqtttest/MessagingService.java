@@ -7,6 +7,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
+import android.support.design.BuildConfig;
 import android.text.TextUtils;
 
 import com.google.gson.Gson;
@@ -33,6 +34,10 @@ import fb.ru.mqtttest.common.logger.Log;
 public class MessagingService extends Service {
 
     public static final String TAG = "MessagingService";
+
+    public static final String ACTION_CONNECTED = BuildConfig.APPLICATION_ID + ".mqtt_connected";
+    public static final String ACTION_DISCONNECTED = BuildConfig.APPLICATION_ID + ".mqtt_disconnected";
+    public static final String EXTRA_MESSENGER = "messenger";
 
     public static final String HOST = "ws://dev.wbrush.ru:8000/mqtt";
     public static final String IN_TOPIC = "mv1/%s/toDevice";
@@ -100,6 +105,7 @@ public class MessagingService extends Service {
 
             @Override
             public void connectComplete(boolean reconnect, String serverURI) {
+                notifyConnected();
                 if (reconnect) {
                     Log.d(TAG, "Reconnected to : " + serverURI);
                     subscribeToTopic(); // Because Clean Session is true, we need to re-subscribe
@@ -110,6 +116,7 @@ public class MessagingService extends Service {
 
             @Override
             public void connectionLost(Throwable cause) {
+                notifyDisconnected();
                 Log.d(TAG, "The Connection was lost.");
                 if (mReconnecting) { // Переподключение из-за изменения адреса в настройках
                     mReconnecting = false;
@@ -154,6 +161,16 @@ public class MessagingService extends Service {
         } catch (MqttException ex){
             Log.e(TAG, "Connecting error", ex);
         }
+    }
+
+    private void notifyDisconnected() {
+        sendBroadcast(new Intent(ACTION_DISCONNECTED));
+    }
+
+    private void notifyConnected() {
+        Intent intent = new Intent(ACTION_CONNECTED);
+        intent.putExtra(EXTRA_MESSENGER, mMessenger);
+        sendBroadcast(intent);
     }
 
     private void reconnect() {

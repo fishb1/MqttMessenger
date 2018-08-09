@@ -30,12 +30,12 @@ import com.google.gson.reflect.TypeToken;
 
 import java.lang.reflect.Type;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import fb.ru.mqtttest.App;
 import fb.ru.mqtttest.GeoService2;
 import fb.ru.mqtttest.MessagingService;
 import fb.ru.mqtttest.R;
+import fb.ru.mqtttest.common.Utils;
 import fb.ru.mqtttest.common.Settings;
 import fb.ru.mqtttest.common.UserSession;
 import fb.ru.mqtttest.common.logger.AndroidLogWrapper;
@@ -212,19 +212,12 @@ public class HomeActivity extends AppCompatActivity {
                 Log.d(TAG, "Остановка службы обновления геолокации");
                 mLocationService.removeLocationUpdates();
                 mHandler.removeCallbacksAndMessages(null);
+                Utils.setGeoServiceAutoBoot(this, false);
             } else {
                 Log.d(TAG, "Запуск службы обновления геолокации");
                 if (checkFineLocationPermission()) {
-                    mLocationService.requestLocationUpdates();
-                    final long timeout = TimeUnit.SECONDS.toMillis(30);
-                    final Runnable task = new Runnable() {
-                        @Override
-                        public void run() {
-                            mLocationService.sendLastLocation(mMessenger);
-                            mHandler.postDelayed(this, timeout);
-                        }
-                    };
-                    mHandler.postDelayed(task, timeout);
+                    mLocationService.requestLocationUpdates(mMessenger);
+                    Utils.setGeoServiceAutoBoot(this, true);
                 }
             }
             invalidateOptionsMenu();

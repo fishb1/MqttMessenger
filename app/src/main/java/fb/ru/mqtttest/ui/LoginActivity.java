@@ -16,7 +16,6 @@ import android.widget.EditText;
 import android.widget.TextView;
 
 import java.io.IOException;
-import java.lang.ref.WeakReference;
 import java.util.UUID;
 
 import javax.net.ssl.HttpsURLConnection;

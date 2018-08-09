@@ -7,7 +7,10 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.location.Location;
@@ -27,12 +30,15 @@ import android.support.v4.content.ContextCompat;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import fb.ru.mqtttest.common.logger.Log;
 
 public class GeoService2 extends Service {
 
     public static final String TAG = "GeoService2";
+    public static final String ACTION_START_UPDATES = BuildConfig.APPLICATION_ID + ".start_updates";
+    private static final long REPORT_INTERVAL = TimeUnit.SECONDS.toMillis(30);
     private static final int TWO_MINUTES = 1000 * 60 * 2;
     private static final int NOTIFICATION_ID = 12345678;
     private static final String CHANNEL_ID = "channel_01";
@@ -68,6 +74,8 @@ public class GeoService2 extends Service {
             Log.d(TAG, "onProviderDisabled(): " + s);
         }
     };
+    private Messenger mMessenger;
+    private BroadcastReceiver mMessengerReceiver; // Получатель события подключения к mqtt
 
     @Override
     public void onCreate() {
@@ -89,6 +97,10 @@ public class GeoService2 extends Service {
 
     @Override
     public int onStartCommand(@Nullable Intent intent, int flags, int startId) {
+        Log.d(TAG, "onStartCommand() intent=" + intent);
+        if (intent != null && ACTION_START_UPDATES.equals(intent.getAction())) {
+            requestLocationUpdates(null);
+        }
         return START_NOT_STICKY;
     }
 
@@ -147,7 +159,12 @@ public class GeoService2 extends Service {
         return builder.build();
     }
 
-    public void requestLocationUpdates() {
+    /**
+     * Начать обновление локации.
+     *
+     * @param messenger месенждер коммутационного сервиса, через который отправляющися фиксы
+     */
+    public void requestLocationUpdates(Messenger messenger) {
         String provider = LocationManager.GPS_PROVIDER;
         LocationManager manager = (LocationManager) getSystemService(LOCATION_SERVICE);
         if (manager != null) {
@@ -155,11 +172,41 @@ public class GeoService2 extends Service {
             if (ContextCompat.checkSelfPermission(this, permission) ==
                     PackageManager.PERMISSION_GRANTED) {
                 startService(new Intent(getApplicationContext(), GeoService2.class));
-                manager.requestLocationUpdates(provider, 0L, 0f, mListener);
+                manager.requestLocationUpdates(provider, 0L, 0f, mListener,
+                        mServiceHandler.getLooper());
                 mRequesting = true;
+                startPeriodicalReports(messenger);
             } else {
-                Log.wtf(TAG, "Has't location permission!");
+                Log.e(TAG, "Has't location permission!");
             }
+        } else {
+            Log.w(TAG, "LocationManager is null!");
+        }
+    }
+
+    private void startPeriodicalReports(Messenger messenger) {
+        if (messenger == null) {
+            mMessengerReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    unregisterReceiver(mMessengerReceiver);
+                    Messenger messenger = intent.getParcelableExtra(MessagingService.EXTRA_MESSENGER);
+                    Log.e(TAG, "Messenger received, messenger=" + messenger);
+                    startPeriodicalReports(messenger);
+                }
+            };
+            Log.e(TAG, "Register messenger receiver");
+            registerReceiver(mMessengerReceiver, new IntentFilter(MessagingService.ACTION_CONNECTED));
+            startService(new Intent(this, MessagingService.class));
+        } else {
+            mMessenger = messenger;
+            mServiceHandler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    sendLastLocation(mMessenger);
+                    mServiceHandler.postDelayed(this, REPORT_INTERVAL);
+                }
+            }, REPORT_INTERVAL);
         }
     }
 
@@ -169,7 +216,10 @@ public class GeoService2 extends Service {
             manager.removeUpdates(mListener);
             stopSelf();
             mRequesting = false;
+            mMessenger = null;
             mServiceHandler.removeCallbacksAndMessages(null);
+        } else {
+            Log.w(TAG, "LocationManager is null!");
         }
     }
 
