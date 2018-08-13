@@ -22,4 +22,7 @@
     <string name="topic_hint">Topic</string>
     <string name="reset_settings">Reset settings</string>
     <string name="stress_test">Stress test</string>
+
+    <string name="notification_title">Location tracker</string>
+    <string name="notification_text">Updated: %1$s</string>
 </resources>

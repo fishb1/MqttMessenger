@@ -83,20 +83,20 @@ public class HomeActivity extends AppCompatActivity {
         }
     };
     // Поля для взаимодействия со службой геолокации
-    boolean isGapiServiceBound;
+    boolean isGeoServiceBound;
     GeoService2 mLocationService;
     ServiceConnection mGapiServiceConnection = new ServiceConnection() {
 
         @Override
         public void onServiceConnected(ComponentName name, IBinder binder) {
             mLocationService = ((GeoService2.LocalBinder) binder).getService();
-            isGapiServiceBound = true;
+            isGeoServiceBound = true;
             invalidateOptionsMenu();
         }
 
         @Override
         public void onServiceDisconnected(ComponentName name) {
-            isGapiServiceBound = false;
+            isGeoServiceBound = false;
             invalidateOptionsMenu();
         }
     };
@@ -140,9 +140,9 @@ public class HomeActivity extends AppCompatActivity {
             unbindService(mMessagingServiceConnection);
             isMessagingServiceBound = false;
         }
-        if (isGapiServiceBound) {
+        if (isGeoServiceBound) {
             unbindService(mGapiServiceConnection);
-            isGapiServiceBound = false;
+            isGeoServiceBound = false;
         }
         // Установить обратно стандартный логгер
         Log.setLogger(new AndroidLogWrapper());
@@ -207,7 +207,8 @@ public class HomeActivity extends AppCompatActivity {
     }
 
     private void toggleService() {
-        if (isGapiServiceBound) {
+        if (isGeoServiceBound) {
+            boolean started = false;
             if (mLocationService.isRequesting()) {
                 Log.d(TAG, "Остановка службы обновления геолокации");
                 mLocationService.removeLocationUpdates();
@@ -216,14 +217,14 @@ public class HomeActivity extends AppCompatActivity {
             } else {
                 Log.d(TAG, "Запуск службы обновления геолокации");
                 if (checkFineLocationPermission()) {
-                    mLocationService.requestLocationUpdates(mMessenger);
+                    mLocationService.requestLocationUpdates();
                     Utils.setGeoServiceAutoBoot(this, true);
                 }
+                started = true;
             }
             invalidateOptionsMenu();
-            Snackbar.make(mContentView, getString(R.string.service_message,
-                    mLocationService.isRequesting() ? "started" : "stopped"),
-                    Snackbar.LENGTH_LONG).show();
+            Snackbar.make(mContentView, getString(R.string.service_message, started ?
+                    "started" : "stopped"), Snackbar.LENGTH_LONG).show();
         }
     }
 
@@ -253,8 +254,8 @@ public class HomeActivity extends AppCompatActivity {
     public boolean onPrepareOptionsMenu(Menu menu) {
         MenuItem toggleServiceItem = menu.findItem(R.id.menu_item_control_service);
         if (toggleServiceItem != null) {
-            toggleServiceItem.setEnabled(isGapiServiceBound);
-            boolean started = isGapiServiceBound && mLocationService.isRequesting();
+            toggleServiceItem.setEnabled(isGeoServiceBound);
+            boolean started = isGeoServiceBound && mLocationService.isRequesting();
             toggleServiceItem.setChecked(started);
             toggleServiceItem.setTitle(started ? R.string.stop_service : R.string.start_service);
         }

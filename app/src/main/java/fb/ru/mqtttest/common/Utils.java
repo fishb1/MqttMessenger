@@ -3,12 +3,14 @@ package fb.ru.mqtttest.common;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.util.Log;
 
 import fb.ru.mqtttest.BootReceiver;
 
 public class Utils {
 
     public static void setGeoServiceAutoBoot(Context context, boolean enable) {
+        Log.d("Utils", "setGeoServiceAutoBoot() " + enable);
         ComponentName receiver = new ComponentName(context, BootReceiver.class);
         PackageManager pm = context.getPackageManager();
         pm.setComponentEnabledSetting(receiver, enable ?
