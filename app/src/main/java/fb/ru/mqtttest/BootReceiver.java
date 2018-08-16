@@ -16,8 +16,8 @@ public class BootReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         Log.d("BootReceiver", "onReceive() intent=" + intent);
         if (Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
-            Intent geoService = new Intent(context, GeoService2.class)
-                    .setAction(GeoService2.ACTION_START_UPDATES);
+            Intent geoService = new Intent(context, GeoService.class)
+                    .setAction(GeoService.ACTION_START_UPDATES);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(geoService);
             } else {

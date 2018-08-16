@@ -19,9 +19,8 @@
     <string name="stop_service">Stop updates</string>
     <string name="service_message">"Automatic location updates %s"</string>
     <string name="message_hint">Message to MQTT in JSON format</string>
-    <string name="topic_hint">Topic</string>
     <string name="reset_settings">Reset settings</string>
-    <string name="stress_test">Stress test</string>
+    <string name="open_auto_start_menu">Autostart settings</string>
 
     <string name="notification_title">Location tracker</string>
     <string name="notification_text">Updated: %1$s</string>

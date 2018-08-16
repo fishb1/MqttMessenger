@@ -2,28 +2,21 @@ package fb.ru.mqtttest.ui;
 
 import android.Manifest;
 import android.content.ComponentName;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
-import android.os.Handler;
 import android.os.IBinder;
-import android.os.Looper;
 import android.os.Message;
 import android.os.Messenger;
 import android.support.annotation.NonNull;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
-import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
-import android.text.TextUtils;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.Button;
-import android.widget.EditText;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
@@ -32,12 +25,13 @@ import java.lang.reflect.Type;
 import java.util.Map;
 
 import fb.ru.mqtttest.App;
-import fb.ru.mqtttest.GeoService2;
+import fb.ru.mqtttest.GeoService;
 import fb.ru.mqtttest.MessagingService;
 import fb.ru.mqtttest.R;
-import fb.ru.mqtttest.common.Utils;
 import fb.ru.mqtttest.common.Settings;
 import fb.ru.mqtttest.common.UserSession;
+import fb.ru.mqtttest.common.Utils;
+import fb.ru.mqtttest.common.VendorUtils;
 import fb.ru.mqtttest.common.logger.AndroidLogWrapper;
 import fb.ru.mqtttest.common.logger.FilterTagLogger;
 import fb.ru.mqtttest.common.logger.Log;
@@ -53,14 +47,6 @@ public class HomeActivity extends AppCompatActivity {
 
     private static int CODE_INPUT_MESSAGE = 1;
     private static int CODE_LOCATION_PERMISSION = 2;
-
-    EditText mStressTestDialogMsgCountView;
-    Button mStressTestButtonView;
-    Handler mStressTestHandler = new Handler();
-    boolean mStressTestStarted;
-    long mStressTestStartTime;
-    long mStressTestMsgCount;
-    AlertDialog mStressTestDialog;
 
     View mContentView;
     LogView mLogView;
@@ -84,12 +70,12 @@ public class HomeActivity extends AppCompatActivity {
     };
     // Поля для взаимодействия со службой геолокации
     boolean isGeoServiceBound;
-    GeoService2 mLocationService;
+    GeoService mLocationService;
     ServiceConnection mGapiServiceConnection = new ServiceConnection() {
 
         @Override
         public void onServiceConnected(ComponentName name, IBinder binder) {
-            mLocationService = ((GeoService2.LocalBinder) binder).getService();
+            mLocationService = ((GeoService.LocalBinder) binder).getService();
             isGeoServiceBound = true;
             invalidateOptionsMenu();
         }
@@ -100,7 +86,6 @@ public class HomeActivity extends AppCompatActivity {
             invalidateOptionsMenu();
         }
     };
-    Handler mHandler = new Handler(Looper.getMainLooper());
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -126,16 +111,13 @@ public class HomeActivity extends AppCompatActivity {
     }
 
     private void bindLocationUpdateService() {
-        bindService(new Intent(this, GeoService2.class),
+        bindService(new Intent(this, GeoService.class),
                 mGapiServiceConnection, BIND_AUTO_CREATE);
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (mStressTestDialog != null) {
-            mStressTestDialog.cancel();
-        }
         if (isMessagingServiceBound) {
             unbindService(mMessagingServiceConnection);
             isMessagingServiceBound = false;
@@ -146,15 +128,6 @@ public class HomeActivity extends AppCompatActivity {
         }
         // Установить обратно стандартный логгер
         Log.setLogger(new AndroidLogWrapper());
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        if (mStressTestStarted) {
-            stopStressTest();
-            toggleStressTestButtonText();
-        }
     }
 
     @Override
@@ -177,14 +150,11 @@ public class HomeActivity extends AppCompatActivity {
             case R.id.menu_item_logout:
                 logout();
                 return true;
-            case R.id.menu_item_settings:
-                startActivity(new Intent(this, SettingsActivity.class));
-                return true;
             case R.id.menu_item_control_service:
                 toggleService();
                 return true;
-            case R.id.menu_item_test:
-                showStressTestDialog();
+            case R.id.menu_open_auto_start_menu:
+                VendorUtils.gotoAutoStartSetting(this);
                 return true;
             default:
                 return super.onOptionsItemSelected(item);
@@ -193,7 +163,8 @@ public class HomeActivity extends AppCompatActivity {
 
     private void publishMessage(String json) {
         Gson gson = new Gson();
-        Type type = new TypeToken<Map<String, Object>>(){}.getType();
+        Type type = new TypeToken<Map<String, Object>>() {
+        }.getType();
         Message msg = Message.obtain();
         try {
             Log.d(TAG, "Sending message: " + json);
@@ -212,7 +183,6 @@ public class HomeActivity extends AppCompatActivity {
             if (mLocationService.isRequesting()) {
                 Log.d(TAG, "Остановка службы обновления геолокации");
                 mLocationService.removeLocationUpdates();
-                mHandler.removeCallbacksAndMessages(null);
                 Utils.setGeoServiceAutoBoot(this, false);
             } else {
                 Log.d(TAG, "Запуск службы обновления геолокации");
@@ -252,12 +222,18 @@ public class HomeActivity extends AppCompatActivity {
 
     @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
+        // Установка доступности пункта меню запуска обновления локации
         MenuItem toggleServiceItem = menu.findItem(R.id.menu_item_control_service);
         if (toggleServiceItem != null) {
             toggleServiceItem.setEnabled(isGeoServiceBound);
             boolean started = isGeoServiceBound && mLocationService.isRequesting();
             toggleServiceItem.setChecked(started);
             toggleServiceItem.setTitle(started ? R.string.stop_service : R.string.start_service);
+        }
+        // Установка видимости пункта меню автозагузки (на китайских аппаратах)
+        MenuItem autoStartItem = menu.findItem(R.id.menu_open_auto_start_menu);
+        if (autoStartItem != null) {
+            autoStartItem.setVisible(VendorUtils.hasAutoStart());
         }
         return true;
     }
@@ -271,105 +247,11 @@ public class HomeActivity extends AppCompatActivity {
     private void initLogger() {
         AndroidLogWrapper wrapper = new AndroidLogWrapper();
         Log.setLogger(wrapper);
-        FilterTagLogger filter = new FilterTagLogger(TAG, Settings.TAG, GeoService2.TAG,
+        FilterTagLogger filter = new FilterTagLogger(TAG, Settings.TAG, GeoService.TAG,
                 MessagingService.TAG);
         wrapper.setNext(filter);
         LogFragment logFragment = (LogFragment) getSupportFragmentManager().findFragmentById(R.id.content);
         filter.setNext(mLogView = logFragment.getLogView());
     }
-
-    private void showStressTestDialog() {
-        AlertDialog.Builder dialog = new AlertDialog.Builder(this);
-        dialog.setView(R.layout.stress_test_dialog);
-        dialog.setTitle("Stress test");
-        dialog.setNegativeButton(android.R.string.cancel, null);
-        dialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
-            @Override
-            public void onDismiss(DialogInterface dialog) {
-                if (mStressTestStarted) {
-                    stopStressTest();
-                }
-            }
-        });
-        dialog.setCancelable(false);
-        mStressTestDialog = dialog.show();
-        mStressTestButtonView = mStressTestDialog.findViewById(R.id.btn_control);
-        mStressTestButtonView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (!mStressTestStarted) {
-                    startStressTest();
-                } else {
-                    stopStressTest();
-                }
-                toggleStressTestButtonText();
-            }
-        });
-        mStressTestDialogMsgCountView = mStressTestDialog.findViewById(R.id.text_msg_count);
-        mStressTestDialogMsgCountView.setText(String.valueOf(20));
-    }
-
-    private void toggleStressTestButtonText() {
-        if (mStressTestButtonView != null) {
-            mStressTestButtonView.setText(mStressTestStarted ? "Stop" : "Start");
-        }
-    }
-
-    private void startStressTest() {
-        Log.d(TAG, "Starting stress test");
-        if (!mStressTestStarted) {
-            String strValue = mStressTestDialogMsgCountView.getText().toString();
-            if (TextUtils.isEmpty(strValue)) {
-                strValue = "0";
-            }
-            int count = Integer.valueOf(strValue);
-            if (count <= 0) {
-                Snackbar.make(mContentView, "Message count less zero!", Snackbar.LENGTH_LONG)
-                        .show();
-                return;
-            }
-            long delay = 1000 / count;
-            new StressTestRunnable(mStressTestHandler, delay).run();
-            mStressTestStarted = true;
-            Log.d(TAG, "Stress test started: speed=" + strValue + " msg in second");
-            mLogView.setMuted(true);
-        } else {
-            Log.w(TAG, "Stress test already running!");
-        }
-    }
-
-    private void stopStressTest() {
-        Log.d(TAG, "Stopping stress test");
-        if (mStressTestStarted) {
-            mStressTestHandler.removeCallbacksAndMessages(null);
-            mLogView.setMuted(false);
-            mStressTestStarted = false;
-            Log.d(TAG, "Stress test stopped");
-            Log.d(TAG, String.format("Running time: %s sec", (System.currentTimeMillis() - mStressTestStartTime) / 1000));
-            Log.d(TAG, String.format("Message count: %s", mStressTestMsgCount));
-
-        } else {
-            Log.d(TAG, "Stress test not started!");
-        }
-    }
-
-    private class StressTestRunnable implements Runnable {
-
-        final Handler mHandler;
-        final long mDelay;
-
-        StressTestRunnable(Handler h, long d) {
-            mStressTestMsgCount = 0;
-            mStressTestStartTime = System.currentTimeMillis();
-            mHandler = h;
-            mDelay = d;
-        }
-
-        @Override
-        public void run() {
-            mStressTestMsgCount++;
-            mLocationService.sendLastLocation(mMessenger);
-            mHandler.postDelayed(this, mDelay);
-        }
-    }
 }
+

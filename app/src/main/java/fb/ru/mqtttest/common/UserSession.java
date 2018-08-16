@@ -15,6 +15,7 @@ public class UserSession {
     private static String PREF_LOGIN = "PREF_LOGIN";
     private static String PREF_PASSWORD = "PREF_PASSWORD";
     private static String PREF_SID = "PREF_SID";
+    private static String PREF_AUTO_START_VISITED = "PREF_AUTO_START_VISITED";
 
     private final SharedPreferences mPrefs;
     private final List<Listener> mListeners = new ArrayList<>();
@@ -62,6 +63,14 @@ public class UserSession {
         for (Listener listener : mListeners) {
             listener.onSessionStop(this);
         }
+    }
+
+    public boolean isAutoStartVisited() {
+        return mPrefs.getBoolean(PREF_AUTO_START_VISITED, false);
+    }
+
+    public boolean setAutoStartVisited(boolean visited) {
+        return mPrefs.edit().putBoolean(PREF_AUTO_START_VISITED, visited).commit();
     }
 
     public void addListener(Listener listener) {

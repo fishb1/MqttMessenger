@@ -35,9 +35,9 @@ import java.util.concurrent.TimeUnit;
 import fb.ru.mqtttest.common.logger.Log;
 import fb.ru.mqtttest.ui.LauncherActivity;
 
-public class GeoService2 extends Service {
+public class GeoService extends Service {
 
-    public static final String TAG = "GeoService2";
+    public static final String TAG = "GeoService";
     public static final String ACTION_START_UPDATES = BuildConfig.APPLICATION_ID + ".start_updates";
     private static final long REPORT_INTERVAL = TimeUnit.SECONDS.toMillis(15);
     private static final int TWO_MINUTES = 1000 * 60 * 2;
@@ -190,7 +190,7 @@ public class GeoService2 extends Service {
         }
         LocationManager manager = (LocationManager) getSystemService(LOCATION_SERVICE);
         if (manager != null) {
-            startService(new Intent(this, GeoService2.class));
+            startService(new Intent(this, GeoService.class));
             String provider = LocationManager.GPS_PROVIDER;
             manager.requestLocationUpdates(provider, 0L, 0f, mListener,
                     mServiceHandler.getLooper());
@@ -214,7 +214,7 @@ public class GeoService2 extends Service {
                 sendLastLocation(mMessenger);
                 // Обновить текст в нотификации на статусбаре
                 NotificationManagerCompat notificationManager =
-                        NotificationManagerCompat.from(GeoService2.this);
+                        NotificationManagerCompat.from(GeoService.this);
                 Notification notification = getNotification()
                         .setContentText(getString(R.string.notification_text,
                                 new Date().toString())).build();
@@ -340,8 +340,8 @@ public class GeoService2 extends Service {
      * clients, we don't need to deal with IPC.
      */
     public class LocalBinder extends Binder {
-        public GeoService2 getService() {
-            return GeoService2.this;
+        public GeoService getService() {
+            return GeoService.this;
         }
     }
 }
