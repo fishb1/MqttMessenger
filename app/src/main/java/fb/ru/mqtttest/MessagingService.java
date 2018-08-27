@@ -22,7 +22,6 @@ import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 
-import fb.ru.mqtttest.common.Settings;
 import fb.ru.mqtttest.common.UserSession;
 import fb.ru.mqtttest.common.logger.Log;
 
@@ -41,22 +40,6 @@ public class MessagingService extends Service {
     private MqttAndroidClient mClient;
     private boolean mReconnecting; // Флаг переподключения при изменении адреса в настройках
     private String mCurrentTopic; // Топик на который подписаны в данный момент (для переподписания)
-    private Settings mSettings;
-    private Settings.OnSettingsChangedListener mSettingsListener = new Settings.OnSettingsChangedListener() {
-
-        @Override
-        public void onSettingsChanged(String settingName) {
-            switch (settingName) {
-                case Settings.PREF_MQTT_BROKER: {
-                    reconnect();
-                } break;
-                case Settings.PREF_SUB_TOPIC: {
-                    resubscribe();
-                } break;
-            }
-        }
-    };
-
     private UserSession mUserSession;
     private Messenger mMessenger; // Месэйджер, который прнимает сообщение от других компонент приложения и отсылает в MQTT. Юзается компонентами через его биндер
 
@@ -69,8 +52,6 @@ public class MessagingService extends Service {
         super.onCreate();
         mMessenger = new Messenger(new MessageHandler());
         mUserSession = ((App) getApplication()).getUserSession();
-        mSettings = ((App) getApplication()).getSettings();
-        mSettings.addOnSettingsChangedListener(mSettingsListener);
         connect();
     }
 
@@ -78,7 +59,6 @@ public class MessagingService extends Service {
     public void onDestroy() {
         Log.d(TAG, "Service destroyed");
         super.onDestroy();
-        mSettings.removeOnSettingsChangedListener(mSettingsListener);
         try {
             mClient.disconnect();
         } catch (MqttException e) {
