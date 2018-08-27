@@ -128,7 +128,7 @@ public class MessagingService extends Service {
             }
         });
         MqttConnectOptions options = new MqttConnectOptions();
-        options.setAutomaticReconnect(false);
+        options.setAutomaticReconnect(true);
         options.setCleanSession(false);
         options.setUserName(mUserSession.getLogin());
         options.setPassword(mUserSession.getPassword().toCharArray());
@@ -137,12 +137,12 @@ public class MessagingService extends Service {
             mClient.connect(options, null, new IMqttActionListener() {
                 @Override
                 public void onSuccess(IMqttToken asyncActionToken) {
-                    DisconnectedBufferOptions disconnectedBufferOptions = new DisconnectedBufferOptions();
-                    disconnectedBufferOptions.setBufferEnabled(true);
-                    disconnectedBufferOptions.setBufferSize(100);
-                    disconnectedBufferOptions.setPersistBuffer(true);
-                    disconnectedBufferOptions.setDeleteOldestMessages(false);
-                    mClient.setBufferOpts(disconnectedBufferOptions);
+                    DisconnectedBufferOptions bufferOptions = new DisconnectedBufferOptions();
+                    bufferOptions.setBufferEnabled(true);
+                    bufferOptions.setBufferSize(1000);
+                    bufferOptions.setPersistBuffer(true);
+                    bufferOptions.setDeleteOldestMessages(false);
+                    mClient.setBufferOpts(bufferOptions);
                     subscribeToTopic();
                 }
 
@@ -193,16 +193,16 @@ public class MessagingService extends Service {
      */
     private void publishMessage(Object message) {
         try {
-//            ObjectMapper mapper = new ObjectMapper(new MessagePackFactory());
-//            byte[] data = mapper.writeValueAsBytes(new MqMessage(CLIENT_ID, message));
             Gson gson = new Gson();
             MqttMessage mqMessage = new MqttMessage();
             mqMessage.setPayload(gson.toJson(message).getBytes());
             String topic = String.format(OUT_TOPIC, mUserSession.getLogin());
             mClient.publish(topic, mqMessage);
             Log.d(TAG, "Message published: " + topic + " : " + new String(mqMessage.getPayload()));
-            if (!mClient.isConnected()) {
+            try {
                 Log.d(TAG, mClient.getBufferedMessageCount() + " messages in buffer.");
+            } catch (Throwable e) {
+                Log.e(TAG, "Error!", e);
             }
         } catch (Throwable e) {
             Log.e(TAG, "Publish error", e);
@@ -211,10 +211,9 @@ public class MessagingService extends Service {
 
     private void subscribeToTopic() {
         final String topic = String.format(IN_TOPIC, mUserSession.getLogin());
-        Log.d(TAG, "Subscribe to topic " + topic);
+        Log.d(TAG, "Subscribing to topic " + topic);
         try {
-            mClient.subscribe(topic,0, null,
-                    new IMqttActionListener() {
+            mClient.subscribe(topic,0, null, new IMqttActionListener() {
                 @Override
                 public void onSuccess(IMqttToken asyncActionToken) {
                     Log.d(TAG, "Subscribed to " + topic);
@@ -237,24 +236,7 @@ public class MessagingService extends Service {
             Log.e(TAG, "Exception whilst subscribing");
         }
     }
-//    /**
-//     * Формат сообщения для отправки на сервер.
-//     */
-//    @SuppressWarnings("WeakerAccess")
-//    private static class MqMessage {
-//
-//        static int sMsgCounter;
-//
-//        public final String i;
-//        public final String x;
-//        public final Object p;
-//
-//        public MqMessage(String sessionId, Object payload) {
-//            i = "id" + (++sMsgCounter);
-//            x = sessionId;
-//            p = payload;
-//        }
-//    }
+
     /**
      * Обработчик сообщений. Принимает и передает сообщения от клиентов в службу.
      */
