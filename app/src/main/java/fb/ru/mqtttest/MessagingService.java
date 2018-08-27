@@ -199,11 +199,11 @@ public class MessagingService extends Service {
             String topic = String.format(OUT_TOPIC, mUserSession.getLogin());
             mClient.publish(topic, mqMessage);
             Log.d(TAG, "Message published: " + topic + " : " + new String(mqMessage.getPayload()));
+            Integer bufferSize = null;
             try {
-                Log.d(TAG, mClient.getBufferedMessageCount() + " messages in buffer.");
-            } catch (Throwable e) {
-                Log.e(TAG, "Error!", e);
-            }
+                bufferSize = mClient.getBufferedMessageCount();
+            } catch (Throwable e) { /* ignore it */}
+            Log.d(TAG, bufferSize + " messages in buffer.");
         } catch (Throwable e) {
             Log.e(TAG, "Publish error", e);
         }
