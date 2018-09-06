@@ -43,7 +43,7 @@
         <service
             android:name="org.eclipse.paho.android.service.MqttService"
             android:exported="false" />
-        <service android:name=".MessagingService" android:exported="false" />
+        <service android:name=".mqtt.MessagingService" android:exported="false" />
         <service android:name=".GeoService" android:exported="false" />
 
         <receiver android:name=".BootReceiver" android:enabled="false">

@@ -1,4 +1,4 @@
-package fb.ru.mqtttest;
+package fb.ru.mqtttest.mqtt;
 
 import android.annotation.SuppressLint;
 import android.app.Service;
@@ -7,9 +7,6 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
-import android.text.TextUtils;
-
-import com.google.gson.Gson;
 
 import org.eclipse.paho.android.service.MqttAndroidClient;
 import org.eclipse.paho.client.mqttv3.DisconnectedBufferOptions;
@@ -22,6 +19,11 @@ import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import fb.ru.mqtttest.App;
 import fb.ru.mqtttest.common.UserSession;
 import fb.ru.mqtttest.common.logger.Log;
 
@@ -42,6 +44,13 @@ public class MessagingService extends Service {
     private String mCurrentTopic; // Топик на который подписаны в данный момент (для переподписания)
     private UserSession mUserSession;
     private Messenger mMessenger; // Месэйджер, который прнимает сообщение от других компонент приложения и отсылает в MQTT. Юзается компонентами через его биндер
+    private MessageQueueObserver mMessageQueueObserver = new MessageQueueObserver() {
+        @Override
+        public void onNewMessage(MessageQueue queue) {
+            connect();
+        }
+    };
+    private Map<IMqttDeliveryToken, Long> mMessagesInProgress = new HashMap<>();
 
     public MessagingService() {
     }
@@ -49,21 +58,17 @@ public class MessagingService extends Service {
     @Override
     public void onCreate() {
         Log.d(TAG, "Service created");
-        super.onCreate();
         mMessenger = new Messenger(new MessageHandler());
         mUserSession = ((App) getApplication()).getUserSession();
-        connect();
+        // Подписываемся на новые сообщения в очереди
+        MessageQueue.getInstance(this).getObservable().registerObserver(mMessageQueueObserver);
     }
 
     @Override
     public void onDestroy() {
         Log.d(TAG, "Service destroyed");
-        super.onDestroy();
-        try {
-            mClient.disconnect();
-        } catch (MqttException e) {
-            Log.e(TAG,"Disconnect error: ", e);
-        }
+        disconnect();
+        MessageQueue.getInstance(this).getObservable().unregisterObserver(mMessageQueueObserver);
     }
 
     @Override
@@ -74,8 +79,7 @@ public class MessagingService extends Service {
 
     private void connect() {
         // Инициализация MQTT клиента
-        mClient = new MqttAndroidClient(getApplicationContext(), HOST,
-                mUserSession.getSid());
+        mClient = new MqttAndroidClient(getApplicationContext(), HOST, mUserSession.getSid());
         mClient.setCallback(new MqttCallbackExtended() {
 
             @Override
@@ -91,20 +95,23 @@ public class MessagingService extends Service {
             @Override
             public void connectionLost(Throwable cause) {
                 Log.d(TAG, "The Connection was lost.");
-                if (mReconnecting) { // Переподключение из-за изменения адреса в настройках
-                    mReconnecting = false;
-                    connect();
-                }
             }
 
             @Override
             public void messageArrived(String topic, MqttMessage message)  {
-                Log.d(TAG, "Incoming message: " + new String(message.getPayload()));
+                Log.d(TAG, "Incoming data: " + new String(message.getPayload()));
             }
 
             @Override
             public void deliveryComplete(IMqttDeliveryToken token) {
-
+                Long msgId = mMessagesInProgress.get(token);
+                Log.d(TAG, "Message published: " + msgId);
+                if (msgId != null) {
+                    MessageQueue.getInstance(MessagingService.this).deleteMessage(msgId);
+                }
+                if (mMessagesInProgress.isEmpty()) {
+                    disconnect();
+                }
             }
         });
         MqttConnectOptions options = new MqttConnectOptions();
@@ -117,13 +124,9 @@ public class MessagingService extends Service {
             mClient.connect(options, null, new IMqttActionListener() {
                 @Override
                 public void onSuccess(IMqttToken asyncActionToken) {
-                    DisconnectedBufferOptions bufferOptions = new DisconnectedBufferOptions();
-                    bufferOptions.setBufferEnabled(true);
-                    bufferOptions.setBufferSize(1000);
-                    bufferOptions.setPersistBuffer(true);
-                    bufferOptions.setDeleteOldestMessages(false);
-                    mClient.setBufferOpts(bufferOptions);
+                    mClient.setBufferOpts(new DisconnectedBufferOptions());
                     subscribeToTopic();
+                    publishMessages();
                 }
 
                 @Override
@@ -136,34 +139,19 @@ public class MessagingService extends Service {
         }
     }
 
-    private void reconnect() {
-        Log.d(TAG, "Reconnecting...");
-        mReconnecting = true;
+    private void disconnect() {
         try {
-            if (mClient.isConnected()) {
-                mClient.disconnect();
-                mCurrentTopic = null; // Подписка тоже снимется
-            } else {
-                connect();
-            }
+            mClient.disconnect();
         } catch (MqttException e) {
-            Log.e(TAG, "Reconnecting error", e);
+            Log.e(TAG,"Disconnect error: ", e);
         }
     }
 
-    private void resubscribe() {
-        Log.d(TAG, "Resubscribing...");
-        if (!TextUtils.isEmpty(mCurrentTopic)) {
-            try {
-                if (!TextUtils.isEmpty(mCurrentTopic)) {
-                    mClient.unsubscribe(mCurrentTopic);
-                    mCurrentTopic = null;
-                }
-            } catch (MqttException e) {
-                Log.e(TAG, "Unsubscribe error", e);
-            }
-            subscribeToTopic();
-       }
+    private void publishMessages() {
+        List<MessagePojo> messages = MessageQueue.getInstance(this).getMessages();
+        for (MessagePojo msg: messages) {
+            publishMessage(msg);
+        }
     }
 
     /**
@@ -171,19 +159,14 @@ public class MessagingService extends Service {
      *
      * @param message сообщение, которое нужно засериализовать и отправить
      */
-    private void publishMessage(Object message) {
+    private void publishMessage(MessagePojo message) {
         try {
-            Gson gson = new Gson();
             MqttMessage mqMessage = new MqttMessage();
-            mqMessage.setPayload(gson.toJson(message).getBytes());
+            mqMessage.setPayload(message.getPayload().getBytes());
             String topic = String.format(OUT_TOPIC, mUserSession.getLogin());
-            mClient.publish(topic, mqMessage);
-            Log.d(TAG, "Message published: " + topic + " : " + new String(mqMessage.getPayload()));
-            Integer bufferSize = null;
-            try {
-                bufferSize = mClient.getBufferedMessageCount();
-            } catch (Throwable e) { /* ignore it */}
-            Log.d(TAG, bufferSize + " messages in buffer.");
+            IMqttDeliveryToken token = mClient.publish(topic, mqMessage);
+            mMessagesInProgress.put(token, message.getId());
+            Log.d(TAG, "Attempt to publish message: " + topic + ": id=" + message.getId() + ", payload=" + new String(mqMessage.getPayload()));
         } catch (Throwable e) {
             Log.e(TAG, "Publish error", e);
         }
@@ -204,8 +187,7 @@ public class MessagingService extends Service {
                 public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
                     Log.d(TAG, "Failed to subscribe");
                 }
-            });
-            mClient.subscribe(topic,0, new IMqttMessageListener() {
+            }, new IMqttMessageListener() {
 
                 @Override
                 public void messageArrived(String topic, MqttMessage message) {
@@ -228,7 +210,8 @@ public class MessagingService extends Service {
 
         @Override
         public void handleMessage(Message msg) {
-            publishMessage(msg.obj);
+            // put data to queue and fire event
+            MessageQueue.getInstance(MessagingService.this).putMessage((String) msg.obj);
         }
     }
 }

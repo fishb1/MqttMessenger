@@ -33,13 +33,14 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import fb.ru.mqtttest.common.logger.Log;
+import fb.ru.mqtttest.mqtt.MessagingService;
 import fb.ru.mqtttest.ui.LauncherActivity;
 
 public class GeoService extends Service {
 
     public static final String TAG = "GeoService";
     public static final String ACTION_START_UPDATES = BuildConfig.APPLICATION_ID + ".start_updates";
-    private static final long REPORT_INTERVAL = TimeUnit.SECONDS.toMillis(15);
+    private static final long REPORT_INTERVAL = TimeUnit.SECONDS.toMillis(30);
     private static final int TWO_MINUTES = 1000 * 60 * 2;
     private static final int NOTIFICATION_ID = 12345678;
     private static final String CHANNEL_ID = "channel_01";

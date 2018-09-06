@@ -26,7 +26,7 @@ import java.util.Map;
 
 import fb.ru.mqtttest.App;
 import fb.ru.mqtttest.GeoService;
-import fb.ru.mqtttest.MessagingService;
+import fb.ru.mqtttest.mqtt.MessagingService;
 import fb.ru.mqtttest.R;
 import fb.ru.mqtttest.common.Settings;
 import fb.ru.mqtttest.common.UserSession;
