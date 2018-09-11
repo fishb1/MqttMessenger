@@ -168,7 +168,8 @@ public class HomeActivity extends AppCompatActivity {
         Message msg = Message.obtain();
         try {
             Log.d(TAG, "Sending message: " + json);
-            msg.obj = gson.fromJson(json, type);
+//            msg.obj = gson.fromJson(json, type);
+            msg.obj = json;
             mMessenger.send(msg);
         } catch (Throwable e) {
             Log.e(TAG, "Msg parsing error", e);

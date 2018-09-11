@@ -9,7 +9,6 @@ import android.os.Message;
 import android.os.Messenger;
 
 import org.eclipse.paho.android.service.MqttAndroidClient;
-import org.eclipse.paho.client.mqttv3.DisconnectedBufferOptions;
 import org.eclipse.paho.client.mqttv3.IMqttActionListener;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.IMqttMessageListener;
@@ -28,8 +27,15 @@ import fb.ru.mqtttest.common.UserSession;
 import fb.ru.mqtttest.common.logger.Log;
 
 /**
- * Служба отвечающая за взаимодействие с MQ TT сервером. Бедет поддерживать трэд с автоматическиой
- * отправкой сообщений геолокации и делать разовую отправку по запросу.
+ * Служба отвечающая за взаимодействие с MQ TT сервером.
+ *
+ * Принцип: Messenger принимает сообщения от других компонент и помещает в очередь.
+ * Сама служба подписана на очередь сообщений, и как только приходит новое сообщение
+ * подключаемся и пытамся отправить все сообщения которые есть в очереди. Если сообщение отправлено
+ * успешно, то удаляем его из очереди. Если после отправки сообещнения очередь пустая,
+ * то дисконнект.
+ *
+ * TODO: Во время сеанса подключении, заодно, будем обрабатывать downstream сообщения.
  */
 public class MessagingService extends Service {
 
@@ -39,18 +45,18 @@ public class MessagingService extends Service {
     public static final String IN_TOPIC = "mv1/%s/toDevice";
     public static final String OUT_TOPIC = "mv1/%s/toServer";
 
-    private MqttAndroidClient mClient;
-    private boolean mReconnecting; // Флаг переподключения при изменении адреса в настройках
-    private String mCurrentTopic; // Топик на который подписаны в данный момент (для переподписания)
-    private UserSession mUserSession;
-    private Messenger mMessenger; // Месэйджер, который прнимает сообщение от других компонент приложения и отсылает в MQTT. Юзается компонентами через его биндер
+    private MqttAndroidClient mClient; // Истранс клиента MQTT
+    private MqttConnectOptions mOptions; // Настройки подключения
+    private UserSession mUserSession; // Имя пользователя пароль и т.д.
+    private Messenger mMessenger; // Месэйджер, который принимает сообщение от других компонент приложения и отсылает в MQTT. Юзается компонентами через его биндер
     private MessageQueueObserver mMessageQueueObserver = new MessageQueueObserver() {
         @Override
         public void onNewMessage(MessageQueue queue) {
+            Log.d(TAG, "New messages, count=" + queue.getMessages().size());
             connect();
         }
     };
-    private Map<IMqttDeliveryToken, Long> mMessagesInProgress = new HashMap<>();
+    private Map<IMqttDeliveryToken, Long> mMessagesInProgress = new HashMap<>(); // Сообщения в процессе отправки, ожиадющие подтверждения
 
     public MessagingService() {
     }
@@ -60,8 +66,14 @@ public class MessagingService extends Service {
         Log.d(TAG, "Service created");
         mMessenger = new Messenger(new MessageHandler());
         mUserSession = ((App) getApplication()).getUserSession();
+        // Создание и настройка MQTT-клиента
+        createClient();
         // Подписываемся на новые сообщения в очереди
         MessageQueue.getInstance(this).getObservable().registerObserver(mMessageQueueObserver);
+        // Если сообещние есть в очереди, то сразу попытаться их отправить
+        if (MessageQueue.getInstance(this).getMessages().size() > 0) {
+            connect();
+        }
     }
 
     @Override
@@ -77,8 +89,10 @@ public class MessagingService extends Service {
         return mMessenger.getBinder();
     }
 
-    private void connect() {
-        // Инициализация MQTT клиента
+    /**
+     * Инициализация MQTT клиента.
+     */
+    private void createClient() {
         mClient = new MqttAndroidClient(getApplicationContext(), HOST, mUserSession.getSid());
         mClient.setCallback(new MqttCallbackExtended() {
 
@@ -104,7 +118,7 @@ public class MessagingService extends Service {
 
             @Override
             public void deliveryComplete(IMqttDeliveryToken token) {
-                Long msgId = mMessagesInProgress.get(token);
+                Long msgId = mMessagesInProgress.remove(token);
                 Log.d(TAG, "Message published: " + msgId);
                 if (msgId != null) {
                     MessageQueue.getInstance(MessagingService.this).deleteMessage(msgId);
@@ -114,24 +128,27 @@ public class MessagingService extends Service {
                 }
             }
         });
-        MqttConnectOptions options = new MqttConnectOptions();
-        options.setAutomaticReconnect(true);
-        options.setCleanSession(false);
-        options.setUserName(mUserSession.getLogin());
-        options.setPassword(mUserSession.getPassword().toCharArray());
+        mOptions = new MqttConnectOptions();
+        mOptions.setAutomaticReconnect(false);
+        mOptions.setCleanSession(true);
+        mOptions.setUserName(mUserSession.getLogin());
+        mOptions.setPassword(mUserSession.getPassword().toCharArray());
+    }
+
+    private void connect() {
+        // Инициализация MQTT клиента
         try {
             Log.d(TAG, "Connecting to " + HOST);
-            mClient.connect(options, null, new IMqttActionListener() {
+            mClient.connect(mOptions, null, new IMqttActionListener() {
                 @Override
                 public void onSuccess(IMqttToken asyncActionToken) {
-                    mClient.setBufferOpts(new DisconnectedBufferOptions());
                     subscribeToTopic();
                     publishMessages();
                 }
 
                 @Override
                 public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
-                    Log.d(TAG, "Failed to connect to " + HOST);
+                    Log.e(TAG, "Failed to connect to " + HOST, exception);
                 }
             });
         } catch (MqttException ex){
@@ -180,7 +197,6 @@ public class MessagingService extends Service {
                 @Override
                 public void onSuccess(IMqttToken asyncActionToken) {
                     Log.d(TAG, "Subscribed to " + topic);
-                    mCurrentTopic = topic;
                 }
 
                 @Override
