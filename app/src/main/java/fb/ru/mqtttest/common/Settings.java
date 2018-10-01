@@ -20,8 +20,8 @@ public class Settings implements SharedPreferences.OnSharedPreferenceChangeListe
 
     public static final String TAG = "Settings";
 
-    public static final String DEFAULT_MQTT_BROKER = "tcp://176.112.218.148:1883";
-    public static final String DEFAULT_REST_API_URL = "http://176.112.218.148:3000";
+//    public static final String DEFAULT_MQTT_BROKER = "tcp://176.112.218.148:1883";
+    public static final String DEFAULT_REST_API_URL = "http://dev.wbrush.ru:3000";
     public static final String PATTERN_PUB_TOPIC = "%s/echo/req";
     public static final String PATTERN_SUB_TOPIC = "%s/echo/resp";
     public static final long DEFAULT_TIMEOUT = 1000;
@@ -57,12 +57,12 @@ public class Settings implements SharedPreferences.OnSharedPreferenceChangeListe
         if (clear) {
             editor.clear().commit();
         }
-        if (TextUtils.isEmpty(getRestApiUrl())) {
+//        if (TextUtils.isEmpty(getRestApiUrl())) {
             editor.putString(PREF_REST_API_URL, DEFAULT_REST_API_URL);
-        }
-        if (TextUtils.isEmpty(getBroker())) {
-            editor.putString(PREF_MQTT_BROKER, DEFAULT_MQTT_BROKER);
-        }
+//        }
+//        if (TextUtils.isEmpty(getBroker())) {
+//            editor.putString(PREF_MQTT_BROKER, DEFAULT_MQTT_BROKER);
+//        }
         if (getTimeout() < 0) {
             editor.putString(PREF_TIMEOUT, String.valueOf(DEFAULT_TIMEOUT));
         }

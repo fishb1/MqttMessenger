@@ -5,5 +5,5 @@ package fb.ru.mqtttest.mqtt;
  */
 public interface MessageQueueObserver {
 
-    void onNewMessage(MessageQueue queue);
+    void onNewMessage(MessageStorage queue);
 }

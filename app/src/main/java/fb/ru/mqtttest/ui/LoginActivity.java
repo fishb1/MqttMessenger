@@ -8,15 +8,11 @@ import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.text.TextUtils;
 import android.util.Log;
-import android.view.KeyEvent;
 import android.view.View;
 import android.view.View.OnClickListener;
-import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
-import android.widget.TextView;
 
 import java.io.IOException;
-import java.util.UUID;
 
 import javax.net.ssl.HttpsURLConnection;
 
@@ -25,7 +21,7 @@ import fb.ru.mqtttest.R;
 import fb.ru.mqtttest.common.Settings;
 import fb.ru.mqtttest.common.UserSession;
 import fb.ru.mqtttest.rest.ApiService;
-import fb.ru.mqtttest.rest.LoginRequestBody;
+import fb.ru.mqtttest.rest.DeviceConfig;
 import retrofit2.Call;
 import retrofit2.Response;
 import retrofit2.Retrofit;
@@ -44,7 +40,6 @@ public class LoginActivity extends AppCompatActivity {
     // UI references.
     private EditText mAddressView;
     private EditText mLoginView;
-    private EditText mPasswordView;
 
     private View mProgressView;
     private View mLoginFormView;
@@ -61,22 +56,10 @@ public class LoginActivity extends AppCompatActivity {
         // ----
         setContentView(R.layout.activity_login);
         // Set up the login form.
-        mAddressView = findViewById(R.id.address);
-        String url = mSettings.getRestApiUrl();
+        mAddressView = findViewById(R.id.server);
+        String url = Settings.DEFAULT_REST_API_URL;
         mAddressView.setText(TextUtils.isEmpty(url) ? Settings.DEFAULT_REST_API_URL : url); // Если затрется при повороте экрана, то ничего страшного...
         mLoginView = findViewById(R.id.login);
-        mPasswordView = findViewById(R.id.password);
-        mPasswordView.setOnEditorActionListener(new TextView.OnEditorActionListener() {
-            @Override
-            public boolean onEditorAction(TextView textView, int id, KeyEvent keyEvent) {
-                if (id == EditorInfo.IME_ACTION_DONE || id == EditorInfo.IME_NULL) {
-                    attemptLogin();
-                    return true;
-                }
-                return false;
-            }
-        });
-
         findViewById(R.id.sign_in_button).setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -97,48 +80,15 @@ public class LoginActivity extends AppCompatActivity {
             return;
         }
 
-        // Reset errors.
-        mLoginView.setError(null);
-        mPasswordView.setError(null);
-
         // Store values at the time of the login attempt.
         String address = mAddressView.getText().toString();
         String login = mLoginView.getText().toString();
-        String password = mPasswordView.getText().toString();
 
-        boolean cancel = false;
-        View focusView = null;
-
-        // Check for a valid password, if the user entered one.
-        if (TextUtils.isEmpty(address)) {
-            mAddressView.setError(getString(R.string.error_field_required));
-            focusView = mAddressView;
-            cancel = true;
-        }
-        // Check for a valid password, if the user entered one.
-        if (TextUtils.isEmpty(password)) {
-            mPasswordView.setError(getString(R.string.error_field_required));
-            focusView = mPasswordView;
-            cancel = true;
-        }
-        // Check for a valid login address.
-        if (TextUtils.isEmpty(login)) {
-            mLoginView.setError(getString(R.string.error_field_required));
-            focusView = mLoginView;
-            cancel = true;
-        }
-
-        if (cancel) {
-            // There was an error; don't attempt login and focus the first
-            // form field with an error.
-            focusView.requestFocus();
-        } else {
-            // Show a progress spinner, and kick off a background task to
-            // perform the user login attempt.
-            showProgress(true);
-            mAuthTask = new UserLoginTask(address, login, password);
-            mAuthTask.execute((Void) null);
-        }
+        // Show a progress spinner, and kick off a background task to
+        // perform the user login attempt.
+        showProgress(true);
+        mAuthTask = new UserLoginTask(address, login);
+        mAuthTask.execute((Void) null);
     }
 
     /**
@@ -171,13 +121,11 @@ public class LoginActivity extends AppCompatActivity {
     public class UserLoginTask extends AsyncTask<Void, Void, Boolean> {
 
         private final String mAddress;
-        private final String mLogin;
-        private final String mPassword;
+        private final String mPinCode;
 
-        UserLoginTask(String address, String login, String password) {
-            mAddress = address;
-            mLogin = login;
-            mPassword = password;
+        UserLoginTask(String server, String pin) {
+            mAddress = server;
+            mPinCode = pin;
         }
 
         @Override
@@ -187,12 +135,12 @@ public class LoginActivity extends AppCompatActivity {
                     .addConverterFactory(GsonConverterFactory.create())
                     .build()
                     .create(ApiService.class);
-            Call<Void> loginCall = apiService.login(new LoginRequestBody(mLogin, mPassword));
+            Call<DeviceConfig> loginCall = apiService.activatePin(mPinCode);
             try {
-                Response<Void> response = loginCall.execute();
+                Response<DeviceConfig> response = loginCall.execute();
                 if (response.code() == HttpsURLConnection.HTTP_OK) {
                     if (!mSession.isStarted()) {
-                        mSession.start(mLogin, mPassword, UUID.randomUUID().toString());
+                        mSession.start(response.body());
                         return true;
                     }
                 }
@@ -210,9 +158,6 @@ public class LoginActivity extends AppCompatActivity {
                 mSettings.setRestApiUrl(mAddress);
                 startActivity(new Intent(LoginActivity.this, LauncherActivity.class));
                 finish();
-            } else {
-                mPasswordView.setError(getString(R.string.error_incorrect_password));
-                mPasswordView.requestFocus();
             }
         }
 

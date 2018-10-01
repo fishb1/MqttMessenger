@@ -51,12 +51,12 @@ public class MessagingService extends Service {
     private Messenger mMessenger; // Месэйджер, который принимает сообщение от других компонент приложения и отсылает в MQTT. Юзается компонентами через его биндер
     private MessageQueueObserver mMessageQueueObserver = new MessageQueueObserver() {
         @Override
-        public void onNewMessage(MessageQueue queue) {
+        public void onNewMessage(MessageStorage queue) {
             Log.d(TAG, "New messages, count=" + queue.getMessages().size());
             connect();
         }
     };
-    private Map<IMqttDeliveryToken, Long> mMessagesInProgress = new HashMap<>(); // Сообщения в процессе отправки, ожиадющие подтверждения
+    private Map<IMqttToken, Long> mMessagesInProgress = new HashMap<>(); // Сообщения в процессе отправки, ожиадющие подтверждения
 
     public MessagingService() {
     }
@@ -69,9 +69,9 @@ public class MessagingService extends Service {
         // Создание и настройка MQTT-клиента
         createClient();
         // Подписываемся на новые сообщения в очереди
-        MessageQueue.getInstance(this).getObservable().registerObserver(mMessageQueueObserver);
+        MessageStorage.getInstance(this).getObservable().registerObserver(mMessageQueueObserver);
         // Если сообещние есть в очереди, то сразу попытаться их отправить
-        if (MessageQueue.getInstance(this).getMessages().size() > 0) {
+        if (MessageStorage.getInstance(this).getMessages().size() > 0) {
             connect();
         }
     }
@@ -80,7 +80,7 @@ public class MessagingService extends Service {
     public void onDestroy() {
         Log.d(TAG, "Service destroyed");
         disconnect();
-        MessageQueue.getInstance(this).getObservable().unregisterObserver(mMessageQueueObserver);
+        MessageStorage.getInstance(this).getObservable().unregisterObserver(mMessageQueueObserver);
     }
 
     @Override
@@ -118,14 +118,7 @@ public class MessagingService extends Service {
 
             @Override
             public void deliveryComplete(IMqttDeliveryToken token) {
-                Long msgId = mMessagesInProgress.remove(token);
-                Log.d(TAG, "Message published: " + msgId);
-                if (msgId != null) {
-                    MessageQueue.getInstance(MessagingService.this).deleteMessage(msgId);
-                }
-                if (mMessagesInProgress.isEmpty()) {
-                    disconnect();
-                }
+                Log.d(TAG, "Delivery complete");
             }
         });
         mOptions = new MqttConnectOptions();
@@ -136,10 +129,13 @@ public class MessagingService extends Service {
     }
 
     private void connect() {
+        if (mClient.isConnected()) {
+            return;
+        }
         // Инициализация MQTT клиента
         try {
             Log.d(TAG, "Connecting to " + HOST);
-            mClient.connect(mOptions, null, new IMqttActionListener() {
+            mClient.connect(mOptions, new IMqttActionListener() {
                 @Override
                 public void onSuccess(IMqttToken asyncActionToken) {
                     subscribeToTopic();
@@ -165,7 +161,7 @@ public class MessagingService extends Service {
     }
 
     private void publishMessages() {
-        List<MessagePojo> messages = MessageQueue.getInstance(this).getMessages();
+        List<MessagePojo> messages = MessageStorage.getInstance(this).getMessages();
         for (MessagePojo msg: messages) {
             publishMessage(msg);
         }
@@ -181,7 +177,26 @@ public class MessagingService extends Service {
             MqttMessage mqMessage = new MqttMessage();
             mqMessage.setPayload(message.getPayload().getBytes());
             String topic = String.format(OUT_TOPIC, mUserSession.getLogin());
-            IMqttDeliveryToken token = mClient.publish(topic, mqMessage);
+            IMqttDeliveryToken token = mClient.publish(topic, mqMessage, null,
+                    new IMqttActionListener() {
+                @Override
+                public void onSuccess(IMqttToken token) {
+                    Long msgId = mMessagesInProgress.remove(token);
+                    Log.d(TAG, "Message published: " + msgId);
+                    if (msgId != null) {
+                        MessageStorage.getInstance(MessagingService.this).deleteMessage(msgId);
+                    }
+                    if (mMessagesInProgress.isEmpty()) {
+                        disconnect();
+                    }
+                }
+
+                @Override
+                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
+                    Long msgId = mMessagesInProgress.remove(asyncActionToken);
+                    Log.e(TAG, "Massage not published: id=" + msgId);
+                }
+            });
             mMessagesInProgress.put(token, message.getId());
             Log.d(TAG, "Attempt to publish message: " + topic + ": id=" + message.getId() + ", payload=" + new String(mqMessage.getPayload()));
         } catch (Throwable e) {
@@ -227,7 +242,7 @@ public class MessagingService extends Service {
         @Override
         public void handleMessage(Message msg) {
             // put data to queue and fire event
-            MessageQueue.getInstance(MessagingService.this).putMessage((String) msg.obj);
+            MessageStorage.getInstance(MessagingService.this).putMessage((String) msg.obj);
         }
     }
 }

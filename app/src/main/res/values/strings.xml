@@ -5,10 +5,10 @@
     <string name="title_activity_message">Input message</string>
 
     <!-- Strings related to login -->
-    <string name="prompt_address">Authentication server</string>
-    <string name="prompt_login">Login</string>
+    <string name="prompt_address">Activation server</string>
+    <string name="prompt_login">Pin code</string>
     <string name="prompt_password">Password</string>
-    <string name="action_sign_in">Sign in or register</string>
+    <string name="action_sign_in">Activate</string>
     <string name="action_sign_in_short">Sign in</string>
     <string name="error_incorrect_password">This password is incorrect</string>
     <string name="error_field_required">This field is required</string>

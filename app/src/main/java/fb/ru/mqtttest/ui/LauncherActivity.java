@@ -19,14 +19,12 @@ public class LauncherActivity extends Activity {
         super.onCreate(savedInstanceState);
         // Implement DI here
         mSession = ((App) getApplication()).getUserSession();
-        mSession.start("5b6225097bddec632b1b2703", "password1", "79883863337");
-//        // ----
-//        if (!mSession.isStarted()) {
-//            startActivity(new Intent(this, LoginActivity.class));
-//        } else {
-
+        // ----
+        if (!mSession.isStarted()) {
+            startActivity(new Intent(this, LoginActivity.class));
+        } else {
             startActivity(new Intent(this, HomeActivity.class));
-//        }
+        }
         finish();
     }
 }

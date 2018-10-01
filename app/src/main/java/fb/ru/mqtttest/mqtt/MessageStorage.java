@@ -13,20 +13,20 @@ import java.util.List;
 /**
  * Очередь сообщений.
  */
-public class MessageQueue {
+public class MessageStorage {
 
-    private static MessageQueue sInstance;
+    private static MessageStorage sInstance;
 
     private final MessageQueueHelper mHelper;
     private final MessageQueueObservable mObservable = new MessageQueueObservable();
 
-    private MessageQueue(MessageQueueHelper helper) {
+    private MessageStorage(MessageQueueHelper helper) {
         mHelper = helper;
     }
 
-    public static synchronized MessageQueue getInstance(Context context) {
+    public static synchronized MessageStorage getInstance(Context context) {
         if (sInstance == null) {
-            sInstance = new MessageQueue(new MessageQueueHelper(context.getApplicationContext()));
+            sInstance = new MessageStorage(new MessageQueueHelper(context.getApplicationContext()));
         }
         return sInstance;
     }
@@ -96,7 +96,7 @@ public class MessageQueue {
      */
     private static class MessageQueueObservable extends Observable<MessageQueueObserver> {
 
-        private void notifyNewMessage(MessageQueue queue) {
+        private void notifyNewMessage(MessageStorage queue) {
             for (int i = mObservers.size() - 1; i >= 0; i--) {
                 mObservers.get(i).onNewMessage(queue);
             }

@@ -1,8 +1,8 @@
 package fb.ru.mqtttest.rest;
 
 import retrofit2.Call;
-import retrofit2.http.Body;
-import retrofit2.http.POST;
+import retrofit2.http.GET;
+import retrofit2.http.Query;
 
 /**
  * Интерфейс рест-адаптера для ретрофита. Исп. только для логина
@@ -11,6 +11,6 @@ import retrofit2.http.POST;
  */
 public interface ApiService {
 
-    @POST("user/create/v1")
-    Call<Void> login(@Body LoginRequestBody request);
+    @GET("userManager/activatePin")
+    Call<DeviceConfig> activatePin(@Query("pin") String pin);
 }
