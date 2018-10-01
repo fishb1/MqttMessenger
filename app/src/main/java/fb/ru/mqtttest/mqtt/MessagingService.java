@@ -18,6 +18,8 @@ import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +43,7 @@ public class MessagingService extends Service {
 
     public static final String TAG = "MessagingService";
 
-    public static final String HOST = "ws://dev.wbrush.ru:8000/mqtt";
+    public static final String HOST = "ws://dev.wbrush.ru:8000";
     public static final String IN_TOPIC = "mv1/%s/toDevice";
     public static final String OUT_TOPIC = "mv1/%s/toServer";
 
@@ -122,10 +124,31 @@ public class MessagingService extends Service {
             }
         });
         mOptions = new MqttConnectOptions();
-        mOptions.setAutomaticReconnect(false);
-        mOptions.setCleanSession(true);
+        mOptions.setAutomaticReconnect(true);
+        mOptions.setCleanSession(false);
         mOptions.setUserName(mUserSession.getLogin());
-        mOptions.setPassword(mUserSession.getPassword().toCharArray());
+        mOptions.setPassword(md5hash(mUserSession.getPassword()).toCharArray());
+    }
+
+    private static String md5hash(String string) {
+        StringBuilder hexString = new StringBuilder();
+        try {
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            byte[] hash = md.digest(string.getBytes());
+
+            for (byte aHash : hash) {
+                String hex;
+                if ((0xff & aHash) < 0x10) {
+                    hex = "0" + Integer.toHexString((0xFF & aHash));
+                } else {
+                    hex = Integer.toHexString(0xFF & aHash);
+                }
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException e) {
+            return "";
+        }
     }
 
     private void connect() {
@@ -135,7 +158,7 @@ public class MessagingService extends Service {
         // Инициализация MQTT клиента
         try {
             Log.d(TAG, "Connecting to " + HOST);
-            mClient.connect(mOptions, new IMqttActionListener() {
+            mClient.connect(mOptions, null, new IMqttActionListener() {
                 @Override
                 public void onSuccess(IMqttToken asyncActionToken) {
                     subscribeToTopic();

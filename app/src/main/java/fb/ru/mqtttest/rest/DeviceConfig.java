@@ -2,7 +2,7 @@ package fb.ru.mqtttest.rest;
 
 public class DeviceConfig {
 
-//    public User user;
+    public User user;
     public MqttConfig mqttUser;
 
 /*
@@ -49,13 +49,13 @@ public class DeviceConfig {
 
  */
 
-//    public static class User {
-//
-//        public String username;
-//        public String password;
-//        public String phone;
-//        public String[] devices;
-//    }
+    public static class User {
+
+        public String username;
+        public String password;
+        public String phone;
+        public String[] devices;
+    }
 
     public static class MqttConfig {
 

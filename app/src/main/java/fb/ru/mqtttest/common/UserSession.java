@@ -28,7 +28,7 @@ public class UserSession {
 
     public void start(DeviceConfig config) {
         mPrefs.edit().putString(PREF_LOGIN, config.mqttUser.username)
-                .putString(PREF_PASSWORD, config.mqttUser.passhash)
+                .putString(PREF_PASSWORD, config.user.password)
                 .putString(PREF_SID, config.mqttUser.client_id)
                 .apply();
         notifyOnStart();
