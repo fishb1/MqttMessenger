@@ -44,7 +44,7 @@ public class GeoService extends Service {
     public static final String TAG = "GeoService";
     public static final String ACTION_START_UPDATES = BuildConfig.APPLICATION_ID + ".start_updates";
     public static final String ACTION_STOP_UPDATES = BuildConfig.APPLICATION_ID + ".stop_updates";
-    private static final long REPORT_INTERVAL = TimeUnit.SECONDS.toMillis(30);
+    private static final long REPORT_INTERVAL = TimeUnit.MINUTES.toMillis(3);
     private static final int TWO_MINUTES = 1000 * 60 * 2;
     private static final int NOTIFICATION_ID = 12345678;
     private static final String CHANNEL_ID = "channel_01";
