@@ -29,8 +29,6 @@ public class App extends Application {
             public void onSessionStart(UserSession session) {
                 // При логине, проинициализировать настройки (подставить логин в имена топиков)
                 mSettings.init(session, false);
-                // Отправка обновления локации
-                startGeoService();
             }
 
             @Override
@@ -42,9 +40,6 @@ public class App extends Application {
                 MessageStorage.getInstance(App.this).clear();
             }
         });
-        if (mUserSession.isStarted()) {
-            startGeoService();
-        }
     }
 
     public UserSession getUserSession() {

@@ -62,14 +62,15 @@ public class HomeActivity extends AppCompatActivity {
         @Override
         public void onServiceConnected(ComponentName name, IBinder binder) {
             mLocationService = ((GeoService.LocalBinder) binder).getService();
+            if (!mLocationService.isRequesting()) {
+                mLocationService.requestLocationUpdates();
+            }
             isGeoServiceBound = true;
-            invalidateOptionsMenu();
         }
 
         @Override
         public void onServiceDisconnected(ComponentName name) {
             isGeoServiceBound = false;
-            invalidateOptionsMenu();
         }
     };
 
@@ -171,6 +172,8 @@ public class HomeActivity extends AppCompatActivity {
             String permission = permissions[0];
             if (permission != null && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 bindLocationUpdateService();
+            } else {
+                checkFineLocationPermission();
             }
         }
     }

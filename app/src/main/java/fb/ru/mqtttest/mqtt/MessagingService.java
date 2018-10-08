@@ -7,6 +7,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
+import android.util.Log;
 
 import org.eclipse.paho.android.service.MqttAndroidClient;
 import org.eclipse.paho.client.mqttv3.IMqttActionListener;
@@ -26,7 +27,6 @@ import java.util.Map;
 
 import fb.ru.mqtttest.App;
 import fb.ru.mqtttest.common.UserSession;
-import fb.ru.mqtttest.common.logger.Log;
 
 /**
  * Служба отвечающая за взаимодействие с MQ TT сервером.

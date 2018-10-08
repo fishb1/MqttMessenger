@@ -181,7 +181,7 @@ public class GeoService extends Service {
                 .setSmallIcon(R.drawable.ic_status)
                 .setContentIntent(pendingIntent)
                 .setOngoing(true)
-                .setContentText("Just started...")
+                .setContentText("Updating location...")
                 .setWhen(0)
                 .setPriority(Notification.PRIORITY_HIGH)
                 .setContentTitle(getString(R.string.notification_title));
@@ -206,8 +206,9 @@ public class GeoService extends Service {
         if (manager != null) {
             startService(new Intent(this, GeoService.class));
             String provider = LocationManager.GPS_PROVIDER;
-            manager.requestLocationUpdates(provider, 0L, 0f, mListener,
+            manager.requestLocationUpdates(provider, 10000, 5, mListener,
                     mServiceHandler.getLooper());
+            mBestLocation = manager.getLastKnownLocation(provider);
             startPeriodicalReports();
         } else {
             Log.w(TAG, "LocationManager is null!");
@@ -230,17 +231,10 @@ public class GeoService extends Service {
             @Override
             public void run() {
                 sendLastLocation(mMessenger);
-                // Обновить текст в нотификации на статусбаре
-                NotificationManagerCompat notificationManager =
-                        NotificationManagerCompat.from(GeoService.this);
-                Notification notification = getNotification()
-                        .setContentText(getString(R.string.notification_text,
-                                new Date().toString())).build();
-                notificationManager.notify(NOTIFICATION_ID, notification);
                 // Назначить следующий запуск
                 mServiceHandler.postDelayed(this, REPORT_INTERVAL);
             }
-        }, REPORT_INTERVAL);
+        }, TimeUnit.SECONDS.toMillis(10));
         mRequesting = true;
     }
 
@@ -281,6 +275,7 @@ public class GeoService extends Service {
     public void sendLastLocation(Messenger messenger) {
         if (mBestLocation == null) { // Еще не подключился?
             Log.w(TAG, "sendLastLocation(): best location is null!");
+            updateNotification("Location is unknown");
             return;
         }
 
@@ -307,6 +302,16 @@ public class GeoService extends Service {
         } catch (RemoteException e) {
             Log.e(TAG, "sendLastLocation() error:", e);
         }
+        updateNotification(getString(R.string.location_update_success, new Date().toString()));
+    }
+
+    private void updateNotification(String text) {
+        // Обновить текст в нотификации на статусбаре
+        NotificationManagerCompat notificationManager =
+                NotificationManagerCompat.from(GeoService.this);
+        Notification notification = getNotification()
+                .setContentText(text).build();
+        notificationManager.notify(NOTIFICATION_ID, notification);
     }
 
     /** Determines whether one Location reading is better than the current Location fix

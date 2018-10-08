@@ -24,5 +24,5 @@
     <string name="open_auto_start_menu">Autostart settings</string>
 
     <string name="notification_title">Location tracker</string>
-    <string name="notification_text">Updated: %1$s</string>
+    <string name="location_update_success">Updated: %1$s</string>
 </resources>
