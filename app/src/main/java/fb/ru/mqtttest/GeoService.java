@@ -27,6 +27,8 @@ import android.support.annotation.Nullable;
 import android.support.v4.app.NotificationManagerCompat;
 import android.support.v4.content.ContextCompat;
 
+import com.google.gson.Gson;
+
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -45,6 +47,7 @@ public class GeoService extends Service {
     private static final int NOTIFICATION_ID = 12345678;
     private static final String CHANNEL_ID = "channel_01";
 
+    private Gson mGson = new Gson();
     private boolean mChangingConfiguration;
     private boolean mRequesting;
     Handler mServiceHandler;
@@ -279,7 +282,7 @@ public class GeoService extends Service {
         body.put("params", params);
 
         Message msg = Message.obtain();
-        msg.obj = body;
+        msg.obj = mGson.toJson(body);
         try {
             messenger.send(msg);
         } catch (RemoteException e) {

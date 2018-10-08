@@ -9,6 +9,7 @@
     <string name="prompt_login">Pin code</string>
     <string name="prompt_password">Password</string>
     <string name="action_sign_in">Activate</string>
+    <string name="action_scan_qr">Scan QR code</string>
     <string name="action_sign_in_short">Sign in</string>
     <string name="error_incorrect_password">This password is incorrect</string>
     <string name="error_field_required">This field is required</string>

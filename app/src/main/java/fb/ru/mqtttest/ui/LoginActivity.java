@@ -12,6 +12,9 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.EditText;
 
+import com.google.zxing.integration.android.IntentIntegrator;
+import com.google.zxing.integration.android.IntentResult;
+
 import java.io.IOException;
 
 import javax.net.ssl.HttpsURLConnection;
@@ -59,6 +62,7 @@ public class LoginActivity extends AppCompatActivity {
         mAddressView = findViewById(R.id.server);
         String url = Settings.DEFAULT_REST_API_URL;
         mAddressView.setText(TextUtils.isEmpty(url) ? Settings.DEFAULT_REST_API_URL : url); // Если затрется при повороте экрана, то ничего страшного...
+        mAddressView.setEnabled(false);
         mLoginView = findViewById(R.id.login);
         findViewById(R.id.sign_in_button).setOnClickListener(new OnClickListener() {
             @Override
@@ -66,8 +70,29 @@ public class LoginActivity extends AppCompatActivity {
                 attemptLogin();
             }
         });
+        findViewById(R.id.scan_qr).setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                IntentIntegrator integrator = new IntentIntegrator(LoginActivity.this);
+                integrator.setOrientationLocked(false);
+                integrator.setBeepEnabled(true);
+                integrator.setDesiredBarcodeFormats(IntentIntegrator.QR_CODE);
+                integrator.setBarcodeImageEnabled(true);
+                integrator.setPrompt("");
+                integrator.initiateScan();
+            }
+        });
         mLoginFormView = findViewById(R.id.login_form);
         mProgressView = findViewById(R.id.login_progress);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        IntentResult result = IntentIntegrator.parseActivityResult(requestCode, resultCode, data);
+        if (result != null) {
+            mLoginView.setText(result.getContents());
+            attemptLogin();
+        }
     }
 
     /**
@@ -88,7 +113,7 @@ public class LoginActivity extends AppCompatActivity {
         // perform the user login attempt.
         showProgress(true);
         mAuthTask = new UserLoginTask(address, login);
-        mAuthTask.execute((Void) null);
+        mAuthTask.execute();
     }
 
     /**

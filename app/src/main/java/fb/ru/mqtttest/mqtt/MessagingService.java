@@ -178,7 +178,7 @@ public class MessagingService extends Service {
     private void disconnect() {
         try {
             mClient.disconnect();
-        } catch (MqttException e) {
+        } catch (Throwable e) {
             Log.e(TAG,"Disconnect error: ", e);
         }
     }
