@@ -28,6 +28,9 @@ public class App extends Application {
             public void onSessionStart(UserSession session) {
                 // При логине, проинициализировать настройки (подставить логин в имена топиков)
                 mSettings.init(session, false);
+                // Отправка обновления локации
+                startService(new Intent(App.this, GeoService.class)
+                        .setAction(GeoService.ACTION_START_UPDATES));
             }
 
             @Override

@@ -7,10 +7,8 @@ import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.os.Message;
 import android.os.Messenger;
 import android.support.annotation.NonNull;
-import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
@@ -21,10 +19,8 @@ import android.view.View;
 import fb.ru.mqtttest.App;
 import fb.ru.mqtttest.GeoService;
 import fb.ru.mqtttest.R;
-import fb.ru.mqtttest.common.Settings;
 import fb.ru.mqtttest.common.VendorUtils;
 import fb.ru.mqtttest.common.logger.AndroidLogWrapper;
-import fb.ru.mqtttest.common.logger.FilterTagLogger;
 import fb.ru.mqtttest.common.logger.Log;
 import fb.ru.mqtttest.common.logger.LogFragment;
 import fb.ru.mqtttest.common.logger.LogView;
@@ -35,7 +31,7 @@ import fb.ru.mqtttest.mqtt.MessagingService;
  */
 public class HomeActivity extends AppCompatActivity {
 
-    private static final String TAG = "HomeActivity";
+//    private static final String TAG = "HomeActivity";
 
     private static int CODE_INPUT_MESSAGE = 1;
     private static int CODE_LOCATION_PERMISSION = 2;
@@ -93,8 +89,15 @@ public class HomeActivity extends AppCompatActivity {
                         MessageActivity.class), CODE_INPUT_MESSAGE);
             }
         });
+        findViewById(R.id.sos).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                publishMessage("SOS!!!1");
+            }
+        });
         mContentView = findViewById(R.id.content);
-        initLogger(); // Initialize the logger (don't forget return original logger back)
+        LogFragment logFragment = (LogFragment) getSupportFragmentManager().findFragmentById(R.id.content);
+        mLogView = logFragment.getLogView();
     }
 
     private void bindLocationUpdateService() {
@@ -137,9 +140,6 @@ public class HomeActivity extends AppCompatActivity {
             case R.id.menu_item_logout:
                 logout();
                 return true;
-            case R.id.menu_item_control_service:
-                toggleService();
-                return true;
             case R.id.menu_open_auto_start_menu:
                 VendorUtils.gotoAutoStartSetting(this);
                 return true;
@@ -149,36 +149,9 @@ public class HomeActivity extends AppCompatActivity {
     }
 
     private void publishMessage(String json) {
-        Message msg = Message.obtain();
-        try {
-            Log.d(TAG, "Sending message: " + json);
-            msg.obj = json;
-            mMessenger.send(msg);
-        } catch (Throwable e) {
-            Log.e(TAG, "Msg parsing error", e);
-            Snackbar.make(mContentView, "Message format error: " + e.getMessage(),
-                    Snackbar.LENGTH_LONG).show();
-        }
+        mLogView.appendToLog("You: " + json);
     }
 
-    private void toggleService() {
-        if (isGeoServiceBound) {
-            boolean started = false;
-            if (mLocationService.isRequesting()) {
-                Log.d(TAG, "Остановка службы обновления геолокации");
-                mLocationService.removeLocationUpdates();
-            } else {
-                Log.d(TAG, "Запуск службы обновления геолокации");
-                if (checkFineLocationPermission()) {
-                    mLocationService.requestLocationUpdates();
-                }
-                started = true;
-            }
-            invalidateOptionsMenu();
-            Snackbar.make(mContentView, getString(R.string.service_message, started ?
-                    "started" : "stopped"), Snackbar.LENGTH_LONG).show();
-        }
-    }
 
     boolean checkFineLocationPermission() {
         if (ContextCompat.checkSelfPermission(this,
@@ -204,14 +177,6 @@ public class HomeActivity extends AppCompatActivity {
 
     @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
-        // Установка доступности пункта меню запуска обновления локации
-        MenuItem toggleServiceItem = menu.findItem(R.id.menu_item_control_service);
-        if (toggleServiceItem != null) {
-            toggleServiceItem.setEnabled(isGeoServiceBound);
-            boolean started = isGeoServiceBound && mLocationService.isRequesting();
-            toggleServiceItem.setChecked(started);
-            toggleServiceItem.setTitle(started ? R.string.stop_service : R.string.start_service);
-        }
         // Установка видимости пункта меню автозагузки (на китайских аппаратах)
         MenuItem autoStartItem = menu.findItem(R.id.menu_open_auto_start_menu);
         if (autoStartItem != null) {
@@ -224,16 +189,6 @@ public class HomeActivity extends AppCompatActivity {
         ((App) getApplication()).getUserSession().clear();
         startActivity(new Intent(this, LauncherActivity.class));
         finish();
-    }
-
-    private void initLogger() {
-        AndroidLogWrapper wrapper = new AndroidLogWrapper();
-        Log.setLogger(wrapper);
-        FilterTagLogger filter = new FilterTagLogger(TAG, Settings.TAG, GeoService.TAG,
-                MessagingService.TAG);
-        wrapper.setNext(filter);
-        LogFragment logFragment = (LogFragment) getSupportFragmentManager().findFragmentById(R.id.content);
-        filter.setNext(mLogView = logFragment.getLogView());
     }
 }
 

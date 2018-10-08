@@ -3,12 +3,6 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
-        android:id="@+id/menu_item_control_service"
-        android:title="@string/start_service"
-        android:checkable="true"
-        app:showAsAction="never" />
-
-    <item
         android:id="@+id/menu_open_auto_start_menu"
         android:icon="@drawable/ic_settings"
         android:title="@string/open_auto_start_menu"
