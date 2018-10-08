@@ -8,12 +8,14 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.ComponentName;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.os.BatteryManager;
 import android.os.Binder;
 import android.os.Build;
 import android.os.Bundle;
@@ -26,6 +28,7 @@ import android.os.RemoteException;
 import android.support.annotation.Nullable;
 import android.support.v4.app.NotificationManagerCompat;
 import android.support.v4.content.ContextCompat;
+import android.util.Log;
 
 import com.google.gson.Gson;
 
@@ -35,7 +38,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import fb.ru.mqtttest.common.Utils;
-import fb.ru.mqtttest.common.logger.Log;
 import fb.ru.mqtttest.mqtt.MessagingService;
 import fb.ru.mqtttest.ui.LauncherActivity;
 
@@ -292,7 +294,7 @@ public class GeoService extends Service {
 
         Map<String, Object> params = new HashMap<>();
         params.put("gps", gps);
-        params.put("battery", 12.8);
+        params.put("battery", getBatteryLevel() * 100);
 
         Map<String, Object> body = new HashMap<>();
         body.put("command", "sensors");
@@ -363,6 +365,18 @@ public class GeoService extends Service {
     public class LocalBinder extends Binder {
         public GeoService getService() {
             return GeoService.this;
+        }
+    }
+
+    private float getBatteryLevel() {
+        IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+        Intent battery = registerReceiver(null, filter);
+        if (battery != null) {
+            int level = battery.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+            int scale = battery.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+            return level / (float) scale;
+        } else {
+            return -1;
         }
     }
 }

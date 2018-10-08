@@ -2,6 +2,7 @@ package fb.ru.mqtttest;
 
 import android.app.Application;
 import android.content.Intent;
+import android.os.Build;
 
 import fb.ru.mqtttest.common.Settings;
 import fb.ru.mqtttest.common.UserSession;
@@ -29,8 +30,7 @@ public class App extends Application {
                 // При логине, проинициализировать настройки (подставить логин в имена топиков)
                 mSettings.init(session, false);
                 // Отправка обновления локации
-                startService(new Intent(App.this, GeoService.class)
-                        .setAction(GeoService.ACTION_START_UPDATES));
+                startGeoService();
             }
 
             @Override
@@ -42,6 +42,9 @@ public class App extends Application {
                 MessageStorage.getInstance(App.this).clear();
             }
         });
+        if (mUserSession.isStarted()) {
+            startGeoService();
+        }
     }
 
     public UserSession getUserSession() {
@@ -50,5 +53,15 @@ public class App extends Application {
 
     public Settings getSettings() {
         return mSettings;
+    }
+
+    public void startGeoService() {
+        Intent geoService = new Intent(this, GeoService.class)
+                .setAction(GeoService.ACTION_START_UPDATES);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(geoService);
+        } else {
+            startService(geoService);
+        }
     }
 }
