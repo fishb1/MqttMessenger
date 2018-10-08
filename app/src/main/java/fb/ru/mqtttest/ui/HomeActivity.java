@@ -18,25 +18,17 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
-
-import java.lang.reflect.Type;
-import java.util.Map;
-
 import fb.ru.mqtttest.App;
 import fb.ru.mqtttest.GeoService;
-import fb.ru.mqtttest.mqtt.MessagingService;
 import fb.ru.mqtttest.R;
 import fb.ru.mqtttest.common.Settings;
-import fb.ru.mqtttest.common.UserSession;
-import fb.ru.mqtttest.common.Utils;
 import fb.ru.mqtttest.common.VendorUtils;
 import fb.ru.mqtttest.common.logger.AndroidLogWrapper;
 import fb.ru.mqtttest.common.logger.FilterTagLogger;
 import fb.ru.mqtttest.common.logger.Log;
 import fb.ru.mqtttest.common.logger.LogFragment;
 import fb.ru.mqtttest.common.logger.LogView;
+import fb.ru.mqtttest.mqtt.MessagingService;
 
 /**
  * Основное активити.
@@ -50,8 +42,6 @@ public class HomeActivity extends AppCompatActivity {
 
     View mContentView;
     LogView mLogView;
-    UserSession mSession;
-    Settings mSettings;
     // Поля для взимодействия с службой сообщений (чтобы вручную отправлять сообщения)
     Messenger mMessenger; // Мессенджер для отправки сообщений в службу сообщений
     boolean isMessagingServiceBound;
@@ -91,9 +81,6 @@ public class HomeActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_home);
-        // TODO: implement DI here
-        mSession = ((App) getApplication()).getUserSession();
-        mSettings = ((App) getApplication()).getSettings();
         bindService(new Intent(this, MessagingService.class),
                 mMessagingServiceConnection, BIND_AUTO_CREATE);
         if (checkFineLocationPermission()) {
@@ -162,13 +149,9 @@ public class HomeActivity extends AppCompatActivity {
     }
 
     private void publishMessage(String json) {
-        Gson gson = new Gson();
-        Type type = new TypeToken<Map<String, Object>>() {
-        }.getType();
         Message msg = Message.obtain();
         try {
             Log.d(TAG, "Sending message: " + json);
-//            msg.obj = gson.fromJson(json, type);
             msg.obj = json;
             mMessenger.send(msg);
         } catch (Throwable e) {
@@ -184,12 +167,10 @@ public class HomeActivity extends AppCompatActivity {
             if (mLocationService.isRequesting()) {
                 Log.d(TAG, "Остановка службы обновления геолокации");
                 mLocationService.removeLocationUpdates();
-                Utils.setGeoServiceAutoBoot(this, false);
             } else {
                 Log.d(TAG, "Запуск службы обновления геолокации");
                 if (checkFineLocationPermission()) {
                     mLocationService.requestLocationUpdates();
-                    Utils.setGeoServiceAutoBoot(this, true);
                 }
                 started = true;
             }
@@ -240,7 +221,7 @@ public class HomeActivity extends AppCompatActivity {
     }
 
     private void logout() {
-        mSession.clear();
+        ((App) getApplication()).getUserSession().clear();
         startActivity(new Intent(this, LauncherActivity.class));
         finish();
     }

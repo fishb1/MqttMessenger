@@ -1,9 +1,7 @@
 package fb.ru.mqtttest.common;
 
 import android.content.SharedPreferences;
-
-import java.util.ArrayList;
-import java.util.List;
+import android.database.Observable;
 
 import fb.ru.mqtttest.rest.DeviceConfig;
 
@@ -20,7 +18,7 @@ public class UserSession {
     private static String PREF_AUTO_START_VISITED = "PREF_AUTO_START_VISITED";
 
     private final SharedPreferences mPrefs;
-    private final List<Listener> mListeners = new ArrayList<>();
+    private final SessionObservable mObservable = new SessionObservable();
 
     public UserSession(SharedPreferences prefs) {
         mPrefs = prefs;
@@ -31,7 +29,7 @@ public class UserSession {
                 .putString(PREF_PASSWORD, config.user.password)
                 .putString(PREF_SID, config.mqttUser.client_id)
                 .apply();
-        notifyOnStart();
+        mObservable.notifyOnSessionStart(this);
     }
 
     public boolean isStarted() {
@@ -40,7 +38,7 @@ public class UserSession {
 
     public void clear() {
         mPrefs.edit().clear().apply();
-        notifyOnStop();
+        mObservable.notifyOnSessionStop(this);
     }
 
     public String getLogin() {
@@ -55,16 +53,8 @@ public class UserSession {
         return mPrefs.getString(PREF_SID, "");
     }
 
-    private void notifyOnStart() {
-        for (Listener listener : mListeners) {
-            listener.onSessionStart(this);
-        }
-    }
-
-    private void notifyOnStop() {
-        for (Listener listener : mListeners) {
-            listener.onSessionStop(this);
-        }
+    public Observable<Listener> getObservable() {
+        return mObservable;
     }
 
     public boolean isAutoStartVisited() {
@@ -75,18 +65,25 @@ public class UserSession {
         return mPrefs.edit().putBoolean(PREF_AUTO_START_VISITED, visited).commit();
     }
 
-    public void addListener(Listener listener) {
-        mListeners.add(listener);
-    }
-
-    public void removeListener(Listener listener) {
-        mListeners.remove(listener);
-    }
-
     public static class Listener {
 
         public void onSessionStart(UserSession session) { }
 
         public void onSessionStop(UserSession session) { }
+    }
+
+    private static class SessionObservable extends Observable<Listener> {
+
+        private void notifyOnSessionStart(UserSession session) {
+            for (int i = mObservers.size() - 1; i >= 0; i--) {
+                mObservers.get(i).onSessionStart(session);
+            }
+        }
+
+        private void notifyOnSessionStop(UserSession session) {
+            for (int i = mObservers.size() - 1; i >= 0; i--) {
+                mObservers.get(i).onSessionStop(session);
+            }
+        }
     }
 }

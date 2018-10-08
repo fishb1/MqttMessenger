@@ -64,6 +64,7 @@ public class LoginActivity extends AppCompatActivity {
         mAddressView.setText(TextUtils.isEmpty(url) ? Settings.DEFAULT_REST_API_URL : url); // Если затрется при повороте экрана, то ничего страшного...
         mAddressView.setEnabled(false);
         mLoginView = findViewById(R.id.login);
+        mLoginView.requestFocus();
         findViewById(R.id.sign_in_button).setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View view) {

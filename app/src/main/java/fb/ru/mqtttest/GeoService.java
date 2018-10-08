@@ -34,6 +34,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import fb.ru.mqtttest.common.Utils;
 import fb.ru.mqtttest.common.logger.Log;
 import fb.ru.mqtttest.mqtt.MessagingService;
 import fb.ru.mqtttest.ui.LauncherActivity;
@@ -42,6 +43,7 @@ public class GeoService extends Service {
 
     public static final String TAG = "GeoService";
     public static final String ACTION_START_UPDATES = BuildConfig.APPLICATION_ID + ".start_updates";
+    public static final String ACTION_STOP_UPDATES = BuildConfig.APPLICATION_ID + ".stop_updates";
     private static final long REPORT_INTERVAL = TimeUnit.SECONDS.toMillis(30);
     private static final int TWO_MINUTES = 1000 * 60 * 2;
     private static final int NOTIFICATION_ID = 12345678;
@@ -117,11 +119,17 @@ public class GeoService extends Service {
 
     @Override
     public int onStartCommand(@Nullable Intent intent, int flags, int startId) {
-        if (intent != null && ACTION_START_UPDATES.equals(intent.getAction())) {
-            Log.d(TAG, "onStartCommand() autostarted");
-            // Если запуск из автостарта, то сразу включать активный режим не дожидась пока приложение свернется
-            startForeground(NOTIFICATION_ID, getNotification().build());
-            requestLocationUpdates();
+        if (intent != null) {
+            if (ACTION_START_UPDATES.equals(intent.getAction())) {
+                Log.d(TAG, "onStartCommand() start command received");
+                // Если запуск из автостарта, то сразу включать активный режим не дожидась пока приложение свернется
+                startForeground(NOTIFICATION_ID, getNotification().build());
+                requestLocationUpdates();
+            } else if (ACTION_STOP_UPDATES.equals(intent.getAction())) {
+                Log.d(TAG, "onStartCommand() stop command received");
+                removeLocationUpdates();
+                stopSelf();
+            }
         }
         return START_NOT_STICKY;
     }
@@ -202,6 +210,10 @@ public class GeoService extends Service {
         } else {
             Log.w(TAG, "LocationManager is null!");
         }
+        // Включить автозагрузку
+        if (!Utils.isGeoServiceAutobootEnabled(this)) {
+            Utils.setGeoServiceAutoBoot(this, true);
+        }
     }
 
     /**
@@ -239,6 +251,11 @@ public class GeoService extends Service {
     }
 
     public void removeLocationUpdates() {
+        // Отключить автозагрузку
+        if (Utils.isGeoServiceAutobootEnabled(this)) {
+            Utils.setGeoServiceAutoBoot(this, false);
+        }
+        // Убрать запросы к геоапи
         LocationManager manager = (LocationManager) getSystemService(LOCATION_SERVICE);
         if (manager != null) {
             manager.removeUpdates(mListener);

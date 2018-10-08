@@ -85,6 +85,15 @@ public class MessageStorage {
     }
 
     /**
+     * Bye.
+     */
+    public void clear() {
+        try(SQLiteDatabase db = mHelper.getWritableDatabase()) {
+            db.delete(MessageQueueHelper.Contact.TABLE_NAME, null, null);
+        }
+    }
+
+    /**
      * Подучить поток событий очереди сообщений.
      */
     public Observable<MessageQueueObserver> getObservable() {
