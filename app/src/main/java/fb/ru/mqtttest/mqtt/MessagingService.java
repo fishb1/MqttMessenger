@@ -19,8 +19,6 @@ import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -127,28 +125,7 @@ public class MessagingService extends Service {
         mOptions.setAutomaticReconnect(false);
         mOptions.setCleanSession(true);
         mOptions.setUserName(mUserSession.getLogin());
-        mOptions.setPassword(md5hash(mUserSession.getPassword()).toCharArray());
-    }
-
-    private static String md5hash(String string) {
-        StringBuilder hexString = new StringBuilder();
-        try {
-            MessageDigest md = MessageDigest.getInstance("MD5");
-            byte[] hash = md.digest(string.getBytes());
-
-            for (byte aHash : hash) {
-                String hex;
-                if ((0xff & aHash) < 0x10) {
-                    hex = "0" + Integer.toHexString((0xFF & aHash));
-                } else {
-                    hex = Integer.toHexString(0xFF & aHash);
-                }
-                hexString.append(hex);
-            }
-            return hexString.toString();
-        } catch (NoSuchAlgorithmException e) {
-            return "";
-        }
+        mOptions.setPassword(mUserSession.getPassword().toCharArray());
     }
 
     private void connect() {
@@ -197,8 +174,7 @@ public class MessagingService extends Service {
      */
     private void publishMessage(MessagePojo message) {
         try {
-            MqttMessage mqMessage = new MqttMessage();
-            mqMessage.setPayload(message.getPayload().getBytes());
+            MqttMessage mqMessage = new MqttMessage(message.getPayload().getBytes());
             String topic = String.format(OUT_TOPIC, mUserSession.getLogin());
             IMqttDeliveryToken token = mClient.publish(topic, mqMessage, null,
                     new IMqttActionListener() {
