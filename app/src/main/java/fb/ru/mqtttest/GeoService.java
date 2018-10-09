@@ -133,7 +133,7 @@ public class GeoService extends Service {
                 stopSelf();
             }
         }
-        return START_NOT_STICKY;
+        return START_STICKY;
     }
 
     @Nullable
@@ -235,6 +235,7 @@ public class GeoService extends Service {
                 mServiceHandler.postDelayed(this, REPORT_INTERVAL);
             }
         }, TimeUnit.SECONDS.toMillis(10));
+        Log.d(TAG, "Post delayed interval: " + REPORT_INTERVAL);
         mRequesting = true;
     }
 

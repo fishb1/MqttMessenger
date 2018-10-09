@@ -2,7 +2,7 @@ package fb.ru.mqtttest.mqtt;
 
 import java.util.Date;
 
-public class MessagePojo {
+public class StoredMessage {
 
     private long id;
     private Date date;
@@ -36,7 +36,7 @@ public class MessagePojo {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        MessagePojo that = (MessagePojo) o;
+        StoredMessage that = (StoredMessage) o;
         return id == that.id && (date != null ? date.equals(that.date) : that.date == null)
                 && (payload != null ? payload.equals(that.payload) : that.payload == null);
     }

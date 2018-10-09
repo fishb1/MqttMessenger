@@ -51,8 +51,8 @@ public class MessageStorage {
      *
      * @return список сообщений
      */
-    public List<MessagePojo> getMessages() {
-        List<MessagePojo> messages = new ArrayList<>();
+    public List<StoredMessage> getMessages() {
+        List<StoredMessage> messages = new ArrayList<>();
         try (SQLiteDatabase db = mHelper.getReadableDatabase();
             Cursor cursor = db.query(MessageQueueHelper.Contact.TABLE_NAME,
                     null, null, null, null, null,
@@ -61,7 +61,7 @@ public class MessageStorage {
             int columnDate = cursor.getColumnIndex(MessageQueueHelper.Contact.TIME);
             int columnMsg = cursor.getColumnIndex(MessageQueueHelper.Contact.PAYLOAD);
             while (cursor.moveToNext()) {
-                MessagePojo message = new MessagePojo();
+                StoredMessage message = new StoredMessage();
                 message.setId(cursor.getLong(columnId));
                 message.setDate(new Date(cursor.getLong(columnDate)));
                 message.setPayload(cursor.getString(columnMsg));

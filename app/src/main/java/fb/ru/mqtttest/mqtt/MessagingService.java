@@ -19,9 +19,7 @@ import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import fb.ru.mqtttest.App;
 import fb.ru.mqtttest.common.UserSession;
@@ -53,10 +51,9 @@ public class MessagingService extends Service {
         @Override
         public void onNewMessage(MessageStorage queue) {
             Log.d(TAG, "New messages, count=" + queue.getMessages().size());
-            connect();
+            processMessages();
         }
     };
-    private Map<IMqttToken, Long> mMessagesInProgress = new HashMap<>(); // Сообщения в процессе отправки, ожиадющие подтверждения
 
     public MessagingService() {
     }
@@ -71,21 +68,19 @@ public class MessagingService extends Service {
         // Подписываемся на новые сообщения в очереди
         MessageStorage.getInstance(this).getObservable().registerObserver(mMessageQueueObserver);
         // Если сообещние есть в очереди, то сразу попытаться их отправить
-        if (MessageStorage.getInstance(this).getMessages().size() > 0) {
-            connect();
-        }
+        processMessages();
     }
 
     @Override
     public void onDestroy() {
         Log.d(TAG, "Service destroyed");
-        disconnect();
         MessageStorage.getInstance(this).getObservable().unregisterObserver(mMessageQueueObserver);
+        disconnect();
     }
 
     @Override
     public IBinder onBind(Intent intent) {
-        Log.d(TAG, "Client connected");
+        Log.d(TAG, "onBind()");
         return mMessenger.getBinder();
     }
 
@@ -122,24 +117,21 @@ public class MessagingService extends Service {
             }
         });
         mOptions = new MqttConnectOptions();
-        mOptions.setAutomaticReconnect(false);
+        mOptions.setAutomaticReconnect(true);
         mOptions.setCleanSession(true);
         mOptions.setUserName(mUserSession.getLogin());
         mOptions.setPassword(mUserSession.getPassword().toCharArray());
     }
 
-    private void connect() {
-        if (mClient.isConnected()) {
-            return;
-        }
+    private void connect(final Runnable callback) {
         // Инициализация MQTT клиента
         try {
             Log.d(TAG, "Connecting to " + HOST);
             mClient.connect(mOptions, null, new IMqttActionListener() {
                 @Override
                 public void onSuccess(IMqttToken asyncActionToken) {
+                    callback.run();
                     subscribeToTopic();
-                    publishMessages();
                 }
 
                 @Override
@@ -147,8 +139,22 @@ public class MessagingService extends Service {
                     Log.e(TAG, "Failed to connect to " + HOST, exception);
                 }
             });
-        } catch (MqttException ex){
+        } catch (Throwable ex){
             Log.e(TAG, "Connecting error", ex);
+        }
+    }
+
+    /**
+     * Проверка подключения. isConnected() может кидать анчекед исключения, поэтому пришлось
+     * завернуть вызов.
+     *
+     * @return подключено
+     */
+    private boolean isConnected() {
+        try {
+            return mClient.isConnected();
+        } catch (Throwable e) {
+            return false;
         }
     }
 
@@ -160,46 +166,47 @@ public class MessagingService extends Service {
         }
     }
 
-    private void publishMessages() {
-        List<MessagePojo> messages = MessageStorage.getInstance(this).getMessages();
-        for (MessagePojo msg: messages) {
-            publishMessage(msg);
-        }
-    }
-
     /**
      * Опубликовать сообщение.
-     *
-     * @param message сообщение, которое нужно засериализовать и отправить
      */
-    private void publishMessage(MessagePojo message) {
-        try {
-            MqttMessage mqMessage = new MqttMessage(message.getPayload().getBytes());
-            String topic = String.format(OUT_TOPIC, mUserSession.getLogin());
-            IMqttDeliveryToken token = mClient.publish(topic, mqMessage, null,
-                    new IMqttActionListener() {
+    private void processMessages() {
+        // Connect if need
+        if (!isConnected()) {
+            connect(new Runnable() {
                 @Override
-                public void onSuccess(IMqttToken token) {
-                    Long msgId = mMessagesInProgress.remove(token);
-                    Log.d(TAG, "Message published: " + msgId);
-                    if (msgId != null) {
-                        MessageStorage.getInstance(MessagingService.this).deleteMessage(msgId);
-                    }
-                    if (mMessagesInProgress.isEmpty()) {
-                        disconnect();
-                    }
-                }
-
-                @Override
-                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
-                    Long msgId = mMessagesInProgress.remove(asyncActionToken);
-                    Log.e(TAG, "Massage not published: id=" + msgId);
+                public void run() {
+                    processMessages();
                 }
             });
-            mMessagesInProgress.put(token, message.getId());
-            Log.d(TAG, "Attempt to publish message: " + topic + ": id=" + message.getId() + ", payload=" + new String(mqMessage.getPayload()));
-        } catch (Throwable e) {
-            Log.e(TAG, "Publish error", e);
+            return;
+        }
+        // Если с очереди есть сообщения то влять первое и попытаться отправить
+        List<StoredMessage> messages = MessageStorage.getInstance(this).getMessages();
+        if(!messages.isEmpty()) {
+            final StoredMessage message = messages.get(0);
+            Log.d(TAG, "Publish next message id=" + message.getId() + " [in queue: " + (messages.size() - 1) + "]");
+            MqttMessage mqMessage = new MqttMessage(message.getPayload().getBytes());
+            String topic = String.format(OUT_TOPIC, mUserSession.getLogin());
+            try {
+                mClient.publish(topic, mqMessage, null,
+                        new IMqttActionListener() {
+                            @Override
+                            public void onSuccess(IMqttToken token) {
+                                Log.d(TAG, "Message published: " + message.getId());
+                                MessageStorage.getInstance(MessagingService.this).deleteMessage(message.getId());
+                                // Process next message
+                                processMessages();
+                            }
+
+                            @Override
+                            public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
+                                Log.e(TAG, "Fail to publish massage: id=" + message.getId());
+                            }
+                        });
+                Log.d(TAG, "Attempt to publish message: " + topic + ": id=" + message.getId() + ", payload=" + new String(mqMessage.getPayload()));
+            } catch (Throwable e) {
+                Log.e(TAG, "Publish error", e);
+            }
         }
     }
 
