@@ -103,6 +103,7 @@ public class GeoService extends Service {
 
     @Override
     public void onCreate() {
+        Log.d(TAG, "onCreate()");
         HandlerThread thread = new HandlerThread(TAG);
         thread.start();
         mServiceHandler = new Handler(thread.getLooper());
@@ -121,6 +122,7 @@ public class GeoService extends Service {
 
     @Override
     public int onStartCommand(@Nullable Intent intent, int flags, int startId) {
+        Log.d(TAG, "onStartCommand() intent=[" + intent + "], flags=" + flags + ", startId=" + startId);
         if (intent != null) {
             if (ACTION_START_UPDATES.equals(intent.getAction())) {
                 Log.d(TAG, "onStartCommand() start command received");
@@ -132,6 +134,8 @@ public class GeoService extends Service {
                 removeLocationUpdates();
                 stopSelf();
             }
+        } else { // Похоже когда сразабывает восстановление службы системой, то прилетает пустой интент, можно попытаться возобновить обновления
+            requestLocationUpdates();
         }
         return START_STICKY;
     }
