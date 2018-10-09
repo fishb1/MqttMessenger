@@ -124,8 +124,8 @@ public class MessagingService extends Service {
             }
         });
         mOptions = new MqttConnectOptions();
-        mOptions.setAutomaticReconnect(true);
-        mOptions.setCleanSession(false);
+        mOptions.setAutomaticReconnect(false);
+        mOptions.setCleanSession(true);
         mOptions.setUserName(mUserSession.getLogin());
         mOptions.setPassword(md5hash(mUserSession.getPassword()).toCharArray());
     }

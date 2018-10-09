@@ -51,7 +51,7 @@ public class GeoService extends Service {
     private static final int NOTIFICATION_ID = 12345678;
     private static final String CHANNEL_ID = "channel_01";
 
-    private Gson mGson = new Gson();
+    private final Gson mGson = new Gson();
     private boolean mChangingConfiguration;
     private boolean mRequesting;
     Handler mServiceHandler;
