@@ -12,6 +12,7 @@ import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -47,6 +48,7 @@ public class GeoService extends Service {
     public static final String ACTION_START_UPDATES = BuildConfig.APPLICATION_ID + ".start_updates";
     public static final String ACTION_STOP_UPDATES = BuildConfig.APPLICATION_ID + ".stop_updates";
     private static final long REPORT_INTERVAL = TimeUnit.MINUTES.toMillis(3);
+    private static final long LOCATION_UPDATES_INTERVAL = TimeUnit.SECONDS.toMillis(30);
     private static final int TWO_MINUTES = 1000 * 60 * 2;
     private static final int NOTIFICATION_ID = 12345678;
     private static final String CHANNEL_ID = "channel_01";
@@ -63,6 +65,7 @@ public class GeoService extends Service {
         public void onLocationChanged(Location location) {
             if (isBetterLocation(location, mBestLocation)) {
                 mBestLocation = location;
+                Log.d(TAG, "New location fix: " + mBestLocation);
             }
         }
 
@@ -114,7 +117,7 @@ public class GeoService extends Service {
             CharSequence name = getString(R.string.app_name);
             // Create the channel for the notification
             NotificationChannel chan =
-                    new NotificationChannel(CHANNEL_ID, name, NotificationManager.IMPORTANCE_DEFAULT);
+                    new NotificationChannel(CHANNEL_ID, name, NotificationManager.IMPORTANCE_HIGH);
             // Set the Notification Channel for the Notification Manager.
             notificationManager.createNotificationChannel(chan);
         }
@@ -135,7 +138,9 @@ public class GeoService extends Service {
                 stopSelf();
             }
         } else { // Похоже когда сразабывает восстановление службы системой, то прилетает пустой интент, можно попытаться возобновить обновления
-            requestLocationUpdates();
+            if (Utils.isGeoServiceAutobootEnabled(this)) {
+                requestLocationUpdates();
+            }
         }
         return START_STICKY;
     }
@@ -208,11 +213,10 @@ public class GeoService extends Service {
         }
         LocationManager manager = (LocationManager) getSystemService(LOCATION_SERVICE);
         if (manager != null) {
-            startService(new Intent(this, GeoService.class));
-            String provider = LocationManager.GPS_PROVIDER;
-            manager.requestLocationUpdates(provider, 10000, 5, mListener,
-                    mServiceHandler.getLooper());
-            mBestLocation = manager.getLastKnownLocation(provider);
+            Criteria criteria = new Criteria();
+            criteria.setAccuracy(Criteria.ACCURACY_FINE);
+            criteria.setPowerRequirement(Criteria.POWER_HIGH);
+            manager.requestLocationUpdates(LOCATION_UPDATES_INTERVAL, 0, criteria, mListener, null);
             startPeriodicalReports();
         } else {
             Log.w(TAG, "LocationManager is null!");
@@ -238,7 +242,7 @@ public class GeoService extends Service {
                 // Назначить следующий запуск
                 mServiceHandler.postDelayed(this, REPORT_INTERVAL);
             }
-        }, TimeUnit.SECONDS.toMillis(10));
+        }, LOCATION_UPDATES_INTERVAL + 5000);
         Log.d(TAG, "Post delayed interval: " + REPORT_INTERVAL);
         mRequesting = true;
     }

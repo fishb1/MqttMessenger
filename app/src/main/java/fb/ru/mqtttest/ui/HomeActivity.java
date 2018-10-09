@@ -20,8 +20,6 @@ import fb.ru.mqtttest.App;
 import fb.ru.mqtttest.GeoService;
 import fb.ru.mqtttest.R;
 import fb.ru.mqtttest.common.VendorUtils;
-import fb.ru.mqtttest.common.logger.AndroidLogWrapper;
-import fb.ru.mqtttest.common.logger.Log;
 import fb.ru.mqtttest.common.logger.LogFragment;
 import fb.ru.mqtttest.common.logger.LogView;
 import fb.ru.mqtttest.mqtt.MessagingService;
@@ -63,7 +61,8 @@ public class HomeActivity extends AppCompatActivity {
         public void onServiceConnected(ComponentName name, IBinder binder) {
             mLocationService = ((GeoService.LocalBinder) binder).getService();
             if (!mLocationService.isRequesting()) {
-                mLocationService.requestLocationUpdates();
+                startService(new Intent(HomeActivity.this, GeoService.class)
+                        .setAction(GeoService.ACTION_START_UPDATES));
             }
             isGeoServiceBound = true;
         }
@@ -117,8 +116,6 @@ public class HomeActivity extends AppCompatActivity {
             unbindService(mGapiServiceConnection);
             isGeoServiceBound = false;
         }
-        // Установить обратно стандартный логгер
-        Log.setLogger(new AndroidLogWrapper());
     }
 
     @Override
