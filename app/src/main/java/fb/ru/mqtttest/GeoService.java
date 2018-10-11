@@ -40,6 +40,7 @@ import java.util.concurrent.TimeUnit;
 
 import fb.ru.mqtttest.common.Utils;
 import fb.ru.mqtttest.mqtt.MessagingService;
+import fb.ru.mqtttest.ui.HomeActivity;
 import fb.ru.mqtttest.ui.LauncherActivity;
 
 public class GeoService extends Service {
@@ -139,7 +140,11 @@ public class GeoService extends Service {
             }
         } else { // Похоже когда сразабывает восстановление службы системой, то прилетает пустой интент, можно попытаться возобновить обновления
             if (Utils.isGeoServiceAutobootEnabled(this)) {
-                requestLocationUpdates();
+                Log.d(TAG, "onStartCommand() try to restore updates after 5 sec");
+                // Стартануть активити, чтобы оно стартануло запросы локации и закрылось. Если сразу из бэкграунда запросить локации, то на сяоми перестают поступать фиксы
+                startActivity(new Intent(this, LauncherActivity.class)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_HISTORY)
+                        .setAction(HomeActivity.ACTION_RESTART));
             }
         }
         return START_STICKY;
@@ -216,6 +221,7 @@ public class GeoService extends Service {
             Criteria criteria = new Criteria();
             criteria.setAccuracy(Criteria.ACCURACY_FINE);
             criteria.setPowerRequirement(Criteria.POWER_HIGH);
+            Log.d(TAG, "Start request location updates");
             manager.requestLocationUpdates(LOCATION_UPDATES_INTERVAL, 0, criteria, mListener, null);
             startPeriodicalReports();
         } else {
@@ -242,7 +248,7 @@ public class GeoService extends Service {
                 // Назначить следующий запуск
                 mServiceHandler.postDelayed(this, REPORT_INTERVAL);
             }
-        }, LOCATION_UPDATES_INTERVAL + 5000);
+        }, LOCATION_UPDATES_INTERVAL + LOCATION_UPDATES_INTERVAL / 2); // Первый раз выполнять не через 3 мин, а примерно после времени получения первого фикса
         Log.d(TAG, "Post delayed interval: " + REPORT_INTERVAL);
         mRequesting = true;
     }

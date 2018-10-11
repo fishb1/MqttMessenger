@@ -31,8 +31,9 @@ public class HomeActivity extends AppCompatActivity {
 
 //    private static final String TAG = "HomeActivity";
 
-    private static int CODE_INPUT_MESSAGE = 1;
-    private static int CODE_LOCATION_PERMISSION = 2;
+    public static final String ACTION_RESTART = "restart";
+    private static final int CODE_INPUT_MESSAGE = 1;
+    private static final int CODE_LOCATION_PERMISSION = 2;
 
     View mContentView;
     LogView mLogView;
@@ -63,6 +64,10 @@ public class HomeActivity extends AppCompatActivity {
             if (!mLocationService.isRequesting()) {
                 startService(new Intent(HomeActivity.this, GeoService.class)
                         .setAction(GeoService.ACTION_START_UPDATES));
+                // If started from service while restart, start updates and finish
+                if (ACTION_RESTART.equals(getIntent().getAction())) {
+                    finish();
+                }
             }
             isGeoServiceBound = true;
         }

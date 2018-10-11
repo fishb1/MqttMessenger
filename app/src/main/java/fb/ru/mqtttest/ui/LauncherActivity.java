@@ -23,7 +23,8 @@ public class LauncherActivity extends Activity {
         if (!mSession.isStarted()) {
             startActivity(new Intent(this, LoginActivity.class));
         } else {
-            startActivity(new Intent(this, HomeActivity.class));
+            startActivity(new Intent(this, HomeActivity.class)
+                    .setAction(getIntent().getAction()));
         }
         finish();
     }
