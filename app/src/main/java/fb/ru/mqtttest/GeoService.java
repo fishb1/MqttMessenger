@@ -221,7 +221,15 @@ public class GeoService extends Service {
             Criteria criteria = new Criteria();
             criteria.setAccuracy(Criteria.ACCURACY_FINE);
             criteria.setPowerRequirement(Criteria.POWER_HIGH);
-            Log.d(TAG, "Start request location updates");
+            try {
+                Log.d(TAG, "Pre start request location updates");
+                manager.requestLocationUpdates(LOCATION_UPDATES_INTERVAL, 0, criteria, mListener, null);
+                Log.d(TAG, "Pre remove location updates");
+                manager.removeUpdates(mListener);
+            } catch (Throwable e) {
+                Log.e(TAG, "Error try locations updates", e);
+            }
+            Log.d(TAG, "Final start request location updates");
             manager.requestLocationUpdates(LOCATION_UPDATES_INTERVAL, 0, criteria, mListener, null);
             startPeriodicalReports();
         } else {
