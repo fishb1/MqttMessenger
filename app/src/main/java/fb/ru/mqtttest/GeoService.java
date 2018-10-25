@@ -6,7 +6,9 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
@@ -14,12 +16,10 @@ import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.location.Criteria;
 import android.location.Location;
-import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.BatteryManager;
 import android.os.Binder;
 import android.os.Build;
-import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -40,7 +40,6 @@ import java.util.concurrent.TimeUnit;
 
 import fb.ru.mqtttest.common.Utils;
 import fb.ru.mqtttest.mqtt.MessagingService;
-import fb.ru.mqtttest.ui.HomeActivity;
 import fb.ru.mqtttest.ui.LauncherActivity;
 
 public class GeoService extends Service {
@@ -48,6 +47,7 @@ public class GeoService extends Service {
     public static final String TAG = "GeoService";
     public static final String ACTION_START_UPDATES = BuildConfig.APPLICATION_ID + ".start_updates";
     public static final String ACTION_STOP_UPDATES = BuildConfig.APPLICATION_ID + ".stop_updates";
+    public static final String ACTION_NEW_LOCATION = BuildConfig.APPLICATION_ID + ".location";
     private static final long REPORT_INTERVAL = TimeUnit.MINUTES.toMillis(3);
     private static final long LOCATION_UPDATES_INTERVAL = TimeUnit.SECONDS.toMillis(30);
     private static final int TWO_MINUTES = 1000 * 60 * 2;
@@ -60,29 +60,12 @@ public class GeoService extends Service {
     Handler mServiceHandler;
     LocalBinder mBinder = new LocalBinder();
     Location mBestLocation;
-    LocationListener mListener = new LocationListener() {
 
+    PendingIntent mPendingIntent;
+    BroadcastReceiver mLocationReceiver = new BroadcastReceiver() {
         @Override
-        public void onLocationChanged(Location location) {
-            if (isBetterLocation(location, mBestLocation)) {
-                mBestLocation = location;
-                Log.d(TAG, "New location fix: " + mBestLocation);
-            }
-        }
-
-        @Override
-        public void onStatusChanged(String s, int i, Bundle bundle) {
-            Log.d(TAG, "onStatusChanged(): " + s);
-        }
-
-        @Override
-        public void onProviderEnabled(String s) {
-            Log.d(TAG, "onProviderEnabled(): " + s);
-        }
-
-        @Override
-        public void onProviderDisabled(String s) {
-            Log.d(TAG, "onProviderDisabled(): " + s);
+        public void onReceive(Context context, Intent intent) {
+            onLocationChanged((Location) intent.getParcelableExtra("location"));
         }
     };
 
@@ -111,6 +94,10 @@ public class GeoService extends Service {
         HandlerThread thread = new HandlerThread(TAG);
         thread.start();
         mServiceHandler = new Handler(thread.getLooper());
+        Intent geoReceiver = new Intent(this, GeoReceiverService.class).setAction(ACTION_NEW_LOCATION);
+        mPendingIntent = PendingIntent.getService(this, 666, geoReceiver, PendingIntent.FLAG_UPDATE_CURRENT);
+            startService(geoReceiver);
+        getApplication().registerReceiver(mLocationReceiver, new IntentFilter(ACTION_NEW_LOCATION));
 
         NotificationManager notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         // Android O requires a Notification Channel.
@@ -142,12 +129,27 @@ public class GeoService extends Service {
             if (Utils.isGeoServiceAutobootEnabled(this)) {
                 Log.d(TAG, "onStartCommand() try to restore updates after 5 sec");
                 // Стартануть активити, чтобы оно стартануло запросы локации и закрылось. Если сразу из бэкграунда запросить локации, то на сяоми перестают поступать фиксы
-                startActivity(new Intent(this, LauncherActivity.class)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_HISTORY)
-                        .setAction(HomeActivity.ACTION_RESTART));
+//                startActivity(new Intent(this, LauncherActivity.class)
+//                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_HISTORY)
+//                        .setAction(HomeActivity.ACTION_RESTART));
+                startForeground(NOTIFICATION_ID, getNotification().build());
+                requestLocationUpdates();
             }
         }
         return START_STICKY;
+    }
+
+    /**
+     * Сюда должны прилетать обновления локации из GeoReceiverService через BroadcastReceiver.
+     *
+     * @param location локация
+     */
+    private void onLocationChanged(Location location) {
+        if (isBetterLocation(location, mBestLocation)) {
+            mBestLocation = location;
+            Log.d(TAG, "New location fix: " + mBestLocation);
+            updateNotification(getString(R.string.location_update_success, new Date().toString()));
+        }
     }
 
     @Nullable
@@ -162,7 +164,6 @@ public class GeoService extends Service {
     public void onRebind(Intent intent) {
         stopForeground(true);
         mChangingConfiguration = false;
-        super.onRebind(intent);
     }
 
     @Override
@@ -221,16 +222,8 @@ public class GeoService extends Service {
             Criteria criteria = new Criteria();
             criteria.setAccuracy(Criteria.ACCURACY_FINE);
             criteria.setPowerRequirement(Criteria.POWER_HIGH);
-            try {
-                Log.d(TAG, "Pre start request location updates");
-                manager.requestLocationUpdates(LOCATION_UPDATES_INTERVAL, 0, criteria, mListener, null);
-                Log.d(TAG, "Pre remove location updates");
-                manager.removeUpdates(mListener);
-            } catch (Throwable e) {
-                Log.e(TAG, "Error try locations updates", e);
-            }
             Log.d(TAG, "Final start request location updates");
-            manager.requestLocationUpdates(LOCATION_UPDATES_INTERVAL, 0, criteria, mListener, null);
+            manager.requestLocationUpdates(LOCATION_UPDATES_INTERVAL, 0, criteria, mPendingIntent);
             startPeriodicalReports();
         } else {
             Log.w(TAG, "LocationManager is null!");
@@ -277,9 +270,8 @@ public class GeoService extends Service {
         // Убрать запросы к геоапи
         LocationManager manager = (LocationManager) getSystemService(LOCATION_SERVICE);
         if (manager != null) {
-            manager.removeUpdates(mListener);
+            manager.removeUpdates(mPendingIntent);
             mRequesting = false;
-            stopSelf();
             if (mMessagingServiceBound) {
                 unbindService(mMessagingServiceConnection);
                 mMessagingServiceBound = false;
@@ -296,19 +288,30 @@ public class GeoService extends Service {
     }
 
     public void sendLastLocation(Messenger messenger) {
-        if (mBestLocation == null) { // Еще не подключился?
+        Location location = mBestLocation;
+        if (location == null) { // Еще не подключился?
             Log.w(TAG, "sendLastLocation(): best location is null!");
             updateNotification("Location is unknown");
-            return;
+            LocationManager manager = (LocationManager) getSystemService(LOCATION_SERVICE);
+            if (manager != null) {
+                try {
+                    location = manager.getLastKnownLocation("gps");
+                } catch (SecurityException e) {
+                    Log.w(TAG, "sendLastLocation(): has not location permission!");
+                }
+            }
+            if (location == null) {
+                return;
+            }
         }
 
         Map<String, Object> gps = new HashMap<>();
-        gps.put("lat", mBestLocation.getLatitude());
-        gps.put("long", mBestLocation.getLongitude());
-        gps.put("alt", mBestLocation.getAltitude());
-        gps.put("acc", mBestLocation.getAccuracy());
-        gps.put("time", mBestLocation.getTime());
-        gps.put("bear", mBestLocation.getBearing());
+        gps.put("lat", location.getLatitude());
+        gps.put("long", location.getLongitude());
+        gps.put("alt", location.getAltitude());
+        gps.put("acc", location.getAccuracy());
+        gps.put("time", location.getTime());
+        gps.put("bear", location.getBearing());
 
         Map<String, Object> params = new HashMap<>();
         params.put("gps", gps);
@@ -325,7 +328,6 @@ public class GeoService extends Service {
         } catch (RemoteException e) {
             Log.e(TAG, "sendLastLocation() error:", e);
         }
-        updateNotification(getString(R.string.location_update_success, new Date().toString()));
     }
 
     private void updateNotification(String text) {

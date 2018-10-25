@@ -45,6 +45,7 @@
             android:exported="false" />
         <service android:name=".mqtt.MessagingService" android:exported="false" />
         <service android:name=".GeoService" android:exported="false" />
+        <service android:name=".GeoReceiverService" android:enabled="true" />
 
         <receiver android:name=".BootReceiver" android:enabled="false">
             <intent-filter>
