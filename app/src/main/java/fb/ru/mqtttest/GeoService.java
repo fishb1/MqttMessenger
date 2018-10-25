@@ -33,6 +33,8 @@ import android.util.Log;
 
 import com.google.gson.Gson;
 
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -60,6 +62,8 @@ public class GeoService extends Service {
     Handler mServiceHandler;
     LocalBinder mBinder = new LocalBinder();
     Location mBestLocation;
+    Location mReportedLocation;
+    private int fails;
 
     PendingIntent mPendingIntent;
     BroadcastReceiver mLocationReceiver = new BroadcastReceiver() {
@@ -94,18 +98,17 @@ public class GeoService extends Service {
         HandlerThread thread = new HandlerThread(TAG);
         thread.start();
         mServiceHandler = new Handler(thread.getLooper());
-        Intent geoReceiver = new Intent(this, GeoReceiverService.class).setAction(ACTION_NEW_LOCATION);
-        mPendingIntent = PendingIntent.getService(this, 666, geoReceiver, PendingIntent.FLAG_UPDATE_CURRENT);
-            startService(geoReceiver);
-        getApplication().registerReceiver(mLocationReceiver, new IntentFilter(ACTION_NEW_LOCATION));
+        getApplication().registerReceiver(mLocationReceiver,
+                new IntentFilter(ACTION_NEW_LOCATION));
 
-        NotificationManager notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        NotificationManager notificationManager =
+                (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         // Android O requires a Notification Channel.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && notificationManager != null) {
             CharSequence name = getString(R.string.app_name);
             // Create the channel for the notification
-            NotificationChannel chan =
-                    new NotificationChannel(CHANNEL_ID, name, NotificationManager.IMPORTANCE_HIGH);
+            NotificationChannel chan = new NotificationChannel(CHANNEL_ID, name,
+                    NotificationManager.IMPORTANCE_HIGH);
             // Set the Notification Channel for the Notification Manager.
             notificationManager.createNotificationChannel(chan);
         }
@@ -129,9 +132,6 @@ public class GeoService extends Service {
             if (Utils.isGeoServiceAutobootEnabled(this)) {
                 Log.d(TAG, "onStartCommand() try to restore updates after 5 sec");
                 // Стартануть активити, чтобы оно стартануло запросы локации и закрылось. Если сразу из бэкграунда запросить локации, то на сяоми перестают поступать фиксы
-//                startActivity(new Intent(this, LauncherActivity.class)
-//                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_HISTORY)
-//                        .setAction(HomeActivity.ACTION_RESTART));
                 startForeground(NOTIFICATION_ID, getNotification().build());
                 requestLocationUpdates();
             }
@@ -148,7 +148,9 @@ public class GeoService extends Service {
         if (isBetterLocation(location, mBestLocation)) {
             mBestLocation = location;
             Log.d(TAG, "New location fix: " + mBestLocation);
-            updateNotification(getString(R.string.location_update_success, new Date().toString()));
+            DateFormat df = SimpleDateFormat.getDateTimeInstance();
+            updateNotification(getString(R.string.location_update_success,
+                    df.format(new Date(mBestLocation.getTime()))));
         }
     }
 
@@ -221,9 +223,16 @@ public class GeoService extends Service {
         if (manager != null) {
             Criteria criteria = new Criteria();
             criteria.setAccuracy(Criteria.ACCURACY_FINE);
-            criteria.setPowerRequirement(Criteria.POWER_HIGH);
+            criteria.setPowerRequirement(Criteria.POWER_MEDIUM);
             Log.d(TAG, "Final start request location updates");
-            manager.requestLocationUpdates(LOCATION_UPDATES_INTERVAL, 0, criteria, mPendingIntent);
+            if (mPendingIntent != null) {
+                manager.removeUpdates(mPendingIntent);
+            }
+            mPendingIntent = PendingIntent.getService(this, 666,
+                    new Intent(this, GeoReceiverService.class)
+                            .setAction(ACTION_NEW_LOCATION), PendingIntent.FLAG_UPDATE_CURRENT);
+            manager.requestLocationUpdates(LOCATION_UPDATES_INTERVAL, 0, criteria,
+                    mPendingIntent);
             startPeriodicalReports();
         } else {
             Log.w(TAG, "LocationManager is null!");
@@ -242,12 +251,12 @@ public class GeoService extends Service {
             getMessengerAsync();
             return;
         }
+        mServiceHandler.removeCallbacksAndMessages(null);
         mServiceHandler.postDelayed(new Runnable() {
             @Override
             public void run() {
+                mServiceHandler.postDelayed(this, REPORT_INTERVAL);  // Назначить следующий запуск
                 sendLastLocation(mMessenger);
-                // Назначить следующий запуск
-                mServiceHandler.postDelayed(this, REPORT_INTERVAL);
             }
         }, LOCATION_UPDATES_INTERVAL + LOCATION_UPDATES_INTERVAL / 2); // Первый раз выполнять не через 3 мин, а примерно после времени получения первого фикса
         Log.d(TAG, "Post delayed interval: " + REPORT_INTERVAL);
@@ -288,45 +297,63 @@ public class GeoService extends Service {
     }
 
     public void sendLastLocation(Messenger messenger) {
-        Location location = mBestLocation;
-        if (location == null) { // Еще не подключился?
-            Log.w(TAG, "sendLastLocation(): best location is null!");
-            updateNotification("Location is unknown");
+        boolean isLocationOutDated = false;
+        boolean isLocationUnknown = false;
+        if (mBestLocation == null) { // Еще не пришло ниодно обновление локации
+            isLocationUnknown = true;
+            Log.w(TAG, "sendLastLocation(): best location is null, attempts=" + fails);
+            updateNotification("Location unknown (" + fails + ")");
+        } else if (mReportedLocation == mBestLocation) { // Локация Не изменилась с прошлого раза
+            isLocationOutDated = true;
+            Log.w(TAG, "sendLastLocation(): location is outdated, attempts=" + fails);
+            updateNotification("Location is outdated (" + fails + ")");
+        }
+        if (isLocationUnknown || isLocationOutDated) {
+            // Подсчитать число ошибок
+            if (++fails == 5) { // Если число ошибок превышено то переподключиться
+                fails = 0;
+                Log.w(TAG, "sendLastLocation(): force resubscribe");
+                requestLocationUpdates();
+                return;
+            }
+            // Попробовать отправить последнюю известную локацию
             LocationManager manager = (LocationManager) getSystemService(LOCATION_SERVICE);
             if (manager != null) {
                 try {
-                    location = manager.getLastKnownLocation("gps");
+                    Location location = manager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+                    onLocationChanged(location);
                 } catch (SecurityException e) {
                     Log.w(TAG, "sendLastLocation(): has not location permission!");
                 }
             }
-            if (location == null) {
-                return;
-            }
+        } else { // Если все хорошо, то сбросить число ошибок
+            fails = 0;
         }
+        mReportedLocation = mBestLocation;
+        if (mReportedLocation != null) {
+            Map<String, Object> gps = new HashMap<>();
+            gps.put("lat", mReportedLocation.getLatitude());
+            gps.put("long", mReportedLocation.getLongitude());
+            gps.put("alt", mReportedLocation.getAltitude());
+            gps.put("acc", mReportedLocation.getAccuracy());
+            gps.put("time", mReportedLocation.getTime());
+            gps.put("bear", mReportedLocation.getBearing());
 
-        Map<String, Object> gps = new HashMap<>();
-        gps.put("lat", location.getLatitude());
-        gps.put("long", location.getLongitude());
-        gps.put("alt", location.getAltitude());
-        gps.put("acc", location.getAccuracy());
-        gps.put("time", location.getTime());
-        gps.put("bear", location.getBearing());
+            Map<String, Object> params = new HashMap<>();
+            params.put("gps", gps);
+            params.put("battery", getBatteryLevel() * 100);
 
-        Map<String, Object> params = new HashMap<>();
-        params.put("gps", gps);
-        params.put("battery", getBatteryLevel() * 100);
+            Map<String, Object> body = new HashMap<>();
+            body.put("command", "sensors");
+            body.put("params", params);
 
-        Map<String, Object> body = new HashMap<>();
-        body.put("command", "sensors");
-        body.put("params", params);
-
-        Message msg = Message.obtain();
-        msg.obj = mGson.toJson(body);
-        try {
-            messenger.send(msg);
-        } catch (RemoteException e) {
-            Log.e(TAG, "sendLastLocation() error:", e);
+            Message msg = Message.obtain();
+            msg.obj = mGson.toJson(body);
+            try {
+                messenger.send(msg);
+            } catch (RemoteException e) {
+                Log.e(TAG, "sendLastLocation() error:", e);
+            }
         }
     }
 

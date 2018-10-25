@@ -5,6 +5,7 @@
 .DS_Store
 /gradle
 /app/build
+/build
 /app/release
 /captures
 .externalNativeBuild
